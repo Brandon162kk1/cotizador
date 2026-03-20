@@ -1,0 +1,34 @@
+services:
+
+  rpa_cotizador: 
+    
+    profiles: ["dongfeng"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cotizador
+    container_name: DongFeng
+
+    env_file:
+      - ${HOST_CREDENCIALES_PATH}
+    ports:
+      - "7075:7075"
+    volumes:
+      - ./Codigo:/app/Codigo
+      - "${HOST_DOWNLOADS_PATH}:/app/Downloads"
+      - rimac_SAS:/codigo_rimac_SAS
+    networks:
+      - orchestrator_network
+    environment:
+      - NOVNC_PORT=7075
+      - DISPLAY_NUM=4
+      - PYTHONPATH=/app/Codigo
+
+volumes:
+  rimac_SAS:
+    external: true
+
+networks:
+  orchestrator_network:
+    external: true
+

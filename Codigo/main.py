@@ -176,8 +176,6 @@ def main():
 
         driver,wait = abrirDriver(ruta_carpeta)
 
-        #logging.info(ctx)
-
         driver.get(os.getenv("urlRimacSAS"))
         logging.info("🔐 Iniciando sesión en RIMAC SAS")
  

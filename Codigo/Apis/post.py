@@ -20,7 +20,7 @@ def enviarCorreoGeneral(mensaje,ruta_carpeta,id,solicitud):
     imagenes = obtener_imagenes_error(ruta_carpeta)
 
     payload = {
-        "Para": para_venv,
+        "Para": para_lista,
         "Copia": copias_lista,
         "Asunto": f"Error generando la {solicitud} en JishuCar para el Movimiento {id}",
         "Mensaje": f"""Hubo problemas al realizar la automatización.\n\nDetalles del error :\n\n{mensaje}""",

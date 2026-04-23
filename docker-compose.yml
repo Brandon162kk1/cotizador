@@ -9,4 +9,3 @@ services:
 # Comando: docker build --no-cache -t cotizador .
 # Comando: docker compose build
 # Comando para crear una imagen base : docker build -f Dockerfile.base -t chromedriver:stable .
-#  docker build --no-cache -t cotizador .

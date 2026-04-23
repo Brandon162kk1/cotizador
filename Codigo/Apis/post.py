@@ -10,9 +10,9 @@ load_dotenv("/app/variables.env")
 # --- Variables de Entorno ---
 url_n8n_enviar_correo_general = os.getenv("url_n8n_enviar_correo_general")
 
-para_venv = os.getenv("para")
+para_venv = os.getenv("para_jc")
 para_lista = para_venv.split(",") if para_venv else []
-copia_venv = os.getenv("copia_cuotas")
+copia_venv = os.getenv("copia_jc")
 copias_lista = copia_venv.split(",") if copia_venv else []
 
 def enviarCorreoGeneral(mensaje,ruta_carpeta,id,solicitud):
@@ -20,7 +20,7 @@ def enviarCorreoGeneral(mensaje,ruta_carpeta,id,solicitud):
     imagenes = obtener_imagenes_error(ruta_carpeta)
 
     payload = {
-        "Para": "camila.aguirre@birlik.com.pe",
+        "Para": para_venv,
         "Copia": copias_lista,
         "Asunto": f"Error generando la {solicitud} en JishuCar para el Movimiento {id}",
         "Mensaje": f"""Hubo problemas al realizar la automatización.\n\nDetalles del error :\n\n{mensaje}""",

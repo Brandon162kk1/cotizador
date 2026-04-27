@@ -247,7 +247,7 @@ def main():
         time.sleep(3)
 
         if ctx.plan.upper() == "PARTICULAR":
-            opcTaxi = "[511266] - CANAL DONGFENG TR (25-03-2026) - SAS"
+            opcTaxi = "[497817] - CANAL DONGFENG TR (10-11-2025) - SAS"
         else:
             opcTaxi = "[497816] - CANAL DONGFENG - TAXI (25-03-2026) - SAS"
 

@@ -65,7 +65,7 @@ def esperar_archivos_nuevos(directorio, archivos_antes, extension, cantidad, tim
 
     return None
 
-def crear_carpeta_descargas(organizacion,id_cot,solicitud):
+def crear_carpeta_descargas(organizacion,ctx):
 
     # --- 👇 CREAR UN BUFFER NUEVO POR CADA CORREO ---
     log_buffer = StringIO()
@@ -76,11 +76,13 @@ def crear_carpeta_descargas(organizacion,id_cot,solicitud):
         force=True
     )
 
+    prefijo = "PRUEBAS_" if ctx.entorno == "LOCAL" else ""
+
     # 📁 rutas
-    carpeta_base = os.path.join(download_path, "Jishu_Car")
+    carpeta_base = os.path.join(download_path, f"{prefijo}Jishu_Car")
     carpeta_empresa = os.path.join(carpeta_base, organizacion)
-    carpeta_solicitud = os.path.join(carpeta_empresa,solicitud.capitalize())
-    carpeta_unica = os.path.join(carpeta_solicitud, f"{id_cot}_{get_dia()}-{get_mes()}-{get_anio()}_{get_timestamp()}")
+    carpeta_solicitud = os.path.join(carpeta_empresa,ctx.solicitud.capitalize())
+    carpeta_unica = os.path.join(carpeta_solicitud, f"{ctx.id_cot}_{get_dia()}-{get_mes()}-{get_anio()}_{get_timestamp()}")
 
     # 🏗️ crear estructura completa
     os.makedirs(carpeta_unica, exist_ok=True)

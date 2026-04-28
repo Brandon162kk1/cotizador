@@ -1,5 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 # -- Froms ---
+from xml.etree.ElementTree import C14NWriterTarget
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -12,13 +14,13 @@ import time
 
 # --- Metodos ---
 
-def resolver_empresa(organizacion: str) -> str:
+def resolver_empresa(ctx):
     dispatch = {
         'dongfeng': 'Dongfeng',
         'pangu': 'Pangu'
     }
 
-    org = (organizacion or "").lower()
+    org = (ctx.vehiculo.organizacion or "").lower()
 
     return next((v for k, v in dispatch.items() if k in org), 'Otro')
 
@@ -359,46 +361,6 @@ def click_tab_terceros_extjs(driver):
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 
-    # # asegurar que no haya máscara
-    # wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-
-    # # 1. hidden por NAME
-    # hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
-
-    # # 2. contenedor SOLO de ese combo
-    # contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
-
-    # # 3. flechita (img)
-    # flecha = contenedor.find_element(By.XPATH, ".//img[contains(@class,'x-form-arrow-trigger')]")
-
-    # # 4. click fuerte en la flecha
-    # driver.execute_script("arguments[0].scrollIntoView({block:'center'});", flecha)
-    # driver.execute_script("arguments[0].click();", flecha)
-    # logging.info("🖱️ Click en flecha del combo")
-
-    # # 5. esperar que aparezca la lista y seleccionar la opción
-    # #opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']")))
-
-    # opcion = wait.until(EC.element_to_be_clickable((
-    #     By.XPATH,
-    #     f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none')) and not(contains(@style,'visibility: hidden'))]"
-    #     f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']"
-    # )))
-
-    # opcion.click()
-    # logging.info("✅ Opción seleccionada")
-
-    # # 6. esperar que ExtJS procese
-    # wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-
-    # # 7. validar que el hidden cambió
-    # if not hidden.get_attribute("value"):
-    #     raise Exception(f"❌ El combo '{name_hidden}' no se confirmó")
-
-    # logging.info(f"🎯 Combo '{name_hidden}' confirmado")
-
-    #---------------------------------------------------------
-    from selenium.webdriver.common.action_chains import ActionChains
     # 🔥 1. Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
@@ -416,10 +378,16 @@ def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
     logging.info("🖱️ Click en flecha del combo")
 
     # 🔥 6. Esperar lista visible real (CLAVE)
+    # opcion = wait.until(EC.element_to_be_clickable((
+    #     By.XPATH,
+    #     f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
+    #     f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']"
+    # )))
+
     opcion = wait.until(EC.element_to_be_clickable((
         By.XPATH,
         f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
-        f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']"
+        f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto_opcion}')]"
     )))
 
     opcion.click()

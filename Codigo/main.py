@@ -58,11 +58,13 @@ def safe_float(value, default=0.0):
 # ------------------ NORMALIZACIÓN --------
 
 def normalizar_data(data: dict):
+
+    data["GAS"] = to_bool(data.get("GAS"))
     data["SOAT"] = to_bool(data.get("SOAT"))
     data["INSPECCION"] = to_bool(data.get("INSPECCION"))
     data["CLIENTE_NUEVO"] = to_bool(data.get("CLIENTE_NUEVO"))
     data["ASIENTOS"] = safe_int(data.get("ASIENTOS"))
-    data["PRECIO"] = safe_float(data.get("PRECIO"))
+    data["PRECIO"] = safe_int(data.get("PRECIO"))
     return data
 
 data = normalizar_data(data)
@@ -72,7 +74,13 @@ data = normalizar_data(data)
 class Vehiculo:
     def __init__(self, data: dict):
 
-        self.organizacion = data.get("ORGANIZACION")
+        self.organizacion = data.get("ORGANIZACION") or ""
+        self.plan = data.get("PLAN")
+
+        self.num_rodaje = data.get("NUM_RODAJE")
+        self.num_motor = data.get("NUM_MOTOR")
+        self.num_serie = data.get("NUM_SERIE")
+
         self.modelo = data.get("MODELO_VEH")
         self.tipo = data.get("TIPO_VEH")
         self.clase = data.get("CLASE_VEH")
@@ -88,71 +96,68 @@ class Vehiculo:
         self.gas = data.get("GAS")
         self.ocupantes = data.get("ASIENTOS")
 
-        self.num_rodaje = data.get("NUM_RODAJE")
-        self.num_motor = data.get("NUM_MOTOR")
-        self.num_serie = data.get("NUM_SERIE")
+        self.seguro = data.get("SOAT")
+        self.inspeccion = data.get("INSPECCION")
+
+        self.localizacion = data.get("LOCALIZACION_CARRO")
+        self.distrito_veh = data.get("DISTRITO_CARRO")
 
     def __str__(self):
         return f"{self.modelo}|{self.marca}|{self.tipo}|{self.clase}"
 
 class Usuario:
     def __init__(self, data: dict):
+
         self.usuario = data.get("USUARIO")
         self.contrasena = data.get("CONTRASEÑA")
         self.rol = data.get("ROL")
         self.canal = data.get("CANAL")
-        #self.vendedor = data.get("VENDEDOR")
+        self.correo_asesor = data.get("CORREO_ASESOR")
 
 class Credito:
     def __init__(self, data: dict):
+
         self.tiempo = data.get("TIEMPO_CREDITO")
-        self.seguro = data.get("SOAT")
-        self.inspeccion = data.get("INSPECCION")
+        self.cuotas = safe_int(data.get("CUOTAS"))
+        self.forma_pago = data.get("FORMA_PAGO")
 
 class Cliente:
     def __init__(self, data: dict):
+
+        self.cliente_nuevo = data.get("CLIENTE_NUEVO")
         self.rz_social = data.get("RAZON_SOCIAL")
         self.nombres = data.get("NOMBRES")
         self.apellido_paterno = data.get("APE_PATERNO")
         self.apellido_materno = data.get("APE_MATERNO")
         self.tipo_persona = data.get("TIP_PERSONA")
         self.tipo_doc = data.get("TIP_DOC")
-        self.num_doc = data.get("NOM_DOC")
+        self.num_doc = data.get("NUM_DOC")
         fecha = data.get("FECHA_NAC")
         self.fecha_nac = datetime.strptime(fecha, "%d-%m-%Y").strftime("%d/%m/%Y") if fecha else None
         self.sexo = data.get("SEXO")
         self.estado_civil = data.get("ESTADO_CIVIL")
-        self.tipo_via = data.get("TIPOVIA")
-        self.nom_via = data.get("NOMBREVIA")
-        self.num_via = data.get("NUMEROVIA")
-        self.cliente_nuevo = data.get("CLIENTE_NUEVO")
+        self.tipo_via = data.get("TIPO_VIA")
+        self.nom_via = data.get("NOMBRE_VIA")
+        self.num_via = data.get("NUMERO_VIA")
 
 class CotizacionContexto:
 
     def __init__(self, data: dict):
 
         self.entorno = data.get("entorno")
+        self.solicitud = data.get("SOLICITUD")
         self.id_cot = data.get("ID_COT")
-        self.solicitud = data.get("solicitud")
         self.usuario = Usuario(data)
         self.vehiculo = Vehiculo(data)
         self.credito = Credito(data)
         self.cliente = Cliente(data)
-
-        self.organizacion = data.get("ORGANIZACION") or ""
-        self.plan = data.get("PLAN")
-        self.localizacion = data.get("LOCALIZACION_CARRO")
-        self.distrito_veh = data.get("DISTRITO_CARRO")
 
     def __str__(self):
         return pformat({
             "usuario": self.usuario.__dict__,
             "vehiculo": self.vehiculo.__dict__,
             "credito": self.credito.__dict__,
-            "cliente": self.cliente.__dict__,
-            "plan": self.plan,
-            "localizacion": self.localizacion,
-            "organizacion": self.organizacion
+            "cliente": self.cliente.__dict__
         })
 
 # ------------------ USO ------------------
@@ -165,9 +170,9 @@ def main():
     cotizacion = False
     driver = None
 
-    nom_empresa = resolver_empresa(ctx.organizacion)
+    nom_empresa = resolver_empresa(ctx)
 
-    ruta_carpeta = crear_carpeta_descargas(nom_empresa, ctx.id_cot,ctx.solicitud)
+    ruta_carpeta = crear_carpeta_descargas(nom_empresa,ctx)
 
     try:
 
@@ -178,6 +183,8 @@ def main():
 
         driver.get(os.getenv("urlRimacSAS"))
         logging.info("🔐 Iniciando sesión en RIMAC SAS")
+
+        #logging.info(ctx)
  
         user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
         user_input.clear()
@@ -246,12 +253,15 @@ def main():
         click_fuera(driver)
         time.sleep(3)
 
-        if ctx.plan.upper() == "PARTICULAR":
-            opcTaxi = "[497817] - CANAL DONGFENG TR (10-11-2025) - SAS"
+        if ctx.vehiculo.plan.upper() == "PARTICULAR":
+            #opcTaxi = "[497817] - CANAL DONGFENG TR (10-11-2025) - SAS"
+            texto_base = "CANAL DONGFENG TR"
         else:
-            opcTaxi = "[497816] - CANAL DONGFENG - TAXI (25-03-2026) - SAS"
+            #opcTaxi = "[497816] - CANAL DONGFENG - TAXI (25-03-2026) - SAS"
+            texto_base = "CANAL DONGFENG - TAXI"
 
-        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",opcTaxi)
+        #seleccionar_combo_por_flecha(driver,wait,"ideplanselected",opcTaxi)
+        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
         time.sleep(3)
         click_fuera(driver)
         time.sleep(3)
@@ -290,13 +300,14 @@ def main():
         time.sleep(1)
         escribir_y_enter_combo_por_name(driver,wait,"selusos_de_vehiculos",ctx.vehiculo.uso,1)
         time.sleep(3)
-        escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",{'SI' if ctx.vehiculo.gas == 'GAS' else 'NO'},1)
+        #escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",{'SI' if ctx.vehiculo.gas == 'GAS' else 'NO'},1)
+        escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",{'SI' if ctx.vehiculo.gas else 'NO'},1)
         time.sleep(3)
         escribir_input_por_name(driver, wait, "txtnro_pasajeros",ctx.vehiculo.ocupantes,False)
         time.sleep(1)
-        escribir_y_enter_combo_por_name(driver,wait,"selprocedenciaexterna",{'SI' if ctx.credito.seguro else 'NO'},1) 
+        escribir_y_enter_combo_por_name(driver,wait,"selprocedenciaexterna",{'SI' if ctx.vehiculo.seguro else 'NO'},1) 
         time.sleep(3)
-        escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",{'SI' if ctx.credito.inspeccion else 'NO'},1) 
+        escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",{'SI' if ctx.vehiculo.inspeccion else 'NO'},1) 
 
         if ctx.vehiculo.uso == 'PARTICULAR':
             time.sleep(3)
@@ -306,7 +317,7 @@ def main():
             time.sleep(3)
             escribir_input_por_name(driver, wait, "txtvendedor", "CAMILA AGUIRRE",False)
             time.sleep(1)
-            escribir_y_enter_combo_por_name(driver,wait,"sellocalización",{'LIMA' if ctx.localizacion == 'LIMA' else 'PROVINCIAS'},2)
+            escribir_y_enter_combo_por_name(driver,wait,"sellocalización",{'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'},2)
 
         #-------------------------
         time.sleep(3)
@@ -339,9 +350,28 @@ def main():
 
         #click_fuera(driver)
 
-        escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento", "PLAN 2020 CC PN 0% USD 12 CUOTAS",2)
+        tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
+
+        tiempo_12 = ctx.credito.tiempo == "12 MESES"
+        es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
+
+        #num_cuotas = 12 if tiempo_12 else 24
+
+        if es_juridica:
+            tipo_plan = "PLAN CC CNT PERSONA JURIDICA"
+        else:
+            tipo_plan = (
+                "PLAN 2020 CC PN 0% USD 12 CUOTAS"
+                if tiempo_12
+                else "PLAN CC CNT PERSONA NATURAL"
+            )
+
+        #escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento", "PLAN 2020 CC PN 0% USD 12 CUOTAS",2)
+        escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento",tipo_plan,2)
         time.sleep(1)
-        escribir_y_enter_combo_por_name(driver, wait, "idetipotarjeta", "Cuenta de Ahorros",2)
+        escribir_input_por_name(driver, wait, "numcuotas", ctx.credito.cuotas,False)
+        time.sleep(1)
+        escribir_y_enter_combo_por_name(driver, wait, "idetipotarjeta",tipo_cuenta,2)
 
         fecha_ddmmyyyy = (datetime.strptime(get_pos_fecha_dmy(), "%d/%m/%Y") + timedelta(days=7)).strftime("%d/%m/%Y")
         ingresar_fecha_extjs(driver,wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy)
@@ -385,8 +415,8 @@ def main():
         #logging.info(f"ℹ️ Modal '{titulo_modal}' → trabajar dentro del modal")
 
         time.sleep(5)
-
-        escribir_input_en_modal(driver,wait,"numerodoc",73049468,True) #73049468 numerodoc
+        dni_cot = os.getenv("dni_cot")
+        escribir_input_en_modal(driver,wait,"numerodoc",dni_cot,True)
 
         time.sleep(3)
 

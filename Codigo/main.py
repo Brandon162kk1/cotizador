@@ -11,12 +11,10 @@ from Apis.post import enviarCorreoGeneral
 from Chrome.driver import tomar_capturar,abrirDriver
 from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas
 
-from Metodos.funciones import escribir_input_en_modal, click_boton_buscar_en_modal_extjs
-from Metodos.funciones import click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs
-from Metodos.funciones import escribir_y_enter_combo_por_name, seleccionar_modelo_extjs
-from Metodos.funciones import escribir_input_por_name, click_fuera, seleccionar_combo_por_flecha
-from Metodos.funciones import click_agregar_cliente_extjs, obtener_titulo_modal_extjs
-from Metodos.funciones import ingresar_fecha_extjs,limpiar,interactuar_combo_por_name,resolver_empresa
+from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
+from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
+from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs
+
 # -- Imports --
 import logging
 import os
@@ -197,7 +195,7 @@ def main():
         pass_input.clear()
         password = os.getenv("passwordRimac") if ctx.entorno.upper() == "LOCAL" else ctx.usuario.contrasena
         pass_input.send_keys(password)
-        logging.info(f"⌨️ Password {password} digitado")
+        logging.info(f"⌨️ Password '{password}' digitado")
  
         ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn)
@@ -214,11 +212,10 @@ def main():
  
         logging.info(f"✅ Código recibido desde volumen: {codigo}")
 
-        logging.info("⌛ Buscando input 'TOKEN'")
         token_input = wait.until(EC.presence_of_element_located((By.ID, "TOKEN")))
         token_input.clear()
         token_input.send_keys(codigo)
-        logging.info(f"⌨️ Código {codigo} digitado correctamente en 'TOKEN'")
+        logging.info(f"⌨️ Digitando {codigo} correctamente en 'TOKEN'")
 
         try:
             os.remove(codigo_path)
@@ -229,133 +226,144 @@ def main():
 
         ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn2)
-        logging.info("🖱️ Clic en 'Ingresar' Luego del TOKEN.")
-
+        logging.info("🖱️ Clic en 'Ingresar'")
+        #----------------------------
         actions = ActionChains(driver)
         span_transacciones = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Transacciones']")))
         actions.double_click(span_transacciones).perform()
         logging.info("🖱️ Doble clic realizado en 'Transacciones'")
- 
+        time.sleep(3)
+        #----------------------------
         span_emision = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Cotizar']")))
         actions.double_click(span_emision).perform()
         logging.info("🖱️ Doble clic realizado en 'Cotizar'")
- 
+        time.sleep(3)
+        #----------------------------
         span_mantenimiento = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Registrar Cotización']")))
         span_mantenimiento.click()
         logging.info("🖱️ Clic realizado en 'Registrar Cotización'")
-
-        logging.info("------------------------------------")
         time.sleep(10)
-        interactuar_combo_por_name(driver, wait, "iderolcanal", "CANAL NO TRADICIONAL") # ctx.usuario.rol
-        time.sleep(5)
-        interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
-        time.sleep(3)
-        click_fuera(driver)
-        time.sleep(3)
-
-        if ctx.vehiculo.plan.upper() == "PARTICULAR":
-            #opcTaxi = "[497817] - CANAL DONGFENG TR (10-11-2025) - SAS"
-            texto_base = "CANAL DONGFENG TR"
-        else:
-            #opcTaxi = "[497816] - CANAL DONGFENG - TAXI (25-03-2026) - SAS"
-            texto_base = "CANAL DONGFENG - TAXI"
-
-        #seleccionar_combo_por_flecha(driver,wait,"ideplanselected",opcTaxi)
-        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
-        time.sleep(3)
-        click_fuera(driver)
-        time.sleep(3)
         logging.info("------------------------------------")
+        #----------------------------
+        interactuar_combo_por_name(driver, wait, "iderolcanal", "CANAL NO TRADICIONAL") # ctx.usuario.rol
+        logging.info(f"🖱️ Clic en ROL → 'CANAL NO TRADICIONAL'")
+        time.sleep(5)
+        #----------------------------
+        interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
+        logging.info(f"🖱️ Clic en CANAL → {ctx.usuario.canal.upper()}")
+        time.sleep(3)
+        #----------------------------
+        click_fuera(driver)
+        #----------------------------
+        #texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} - {'TAXI' if nom_empresa.upper() == 'DONGFENG' else 'TRANSPORTE DE PERSONAL'}"
+        texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} - TAXI"
+        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
+        logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
+        time.sleep(3)
+        #----------------------------
+        click_fuera(driver)
+        #----------------------------
         boton = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Datos Particulares']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", boton)
         driver.execute_script("arguments[0].click();", boton)
         logging.info("🖱️ Clic en 'Generar Datos Particulares'")
-
+        #----------------------------
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
         logging.info("✅ Carga finalizada")   
-        logging.info("------------------------------------")
-
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtplaca_de_rodaje",ctx.vehiculo.num_rodaje,False)
         time.sleep(1)
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtnumero_de_motor",ctx.vehiculo.num_motor,False)
         time.sleep(1)
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtnumero_de_serie",ctx.vehiculo.num_serie,False)
         time.sleep(1)
-
+        #----------------------------
         logging.info(f"🚗 Vehículo a buscar: {ctx.vehiculo}")
-
         modelo = limpiar(ctx.vehiculo.modelo)
         marca = limpiar(ctx.vehiculo.marca)
         tipo = limpiar(ctx.vehiculo.tipo)
         clase = limpiar(ctx.vehiculo.clase)
-
         texto_busqueda = modelo
         texto_opcion = f"{modelo}|{marca}|{tipo}|{clase}"
-
         seleccionar_modelo_extjs(driver,wait,texto_busqueda=texto_busqueda,texto_opcion=texto_opcion)
         time.sleep(3)
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtweb_anos_de_fabricacion",ctx.vehiculo.anio,False)
         time.sleep(1)
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtsuma_asegurada",ctx.vehiculo.valor,False)
         time.sleep(1)
+        #----------------------------
         escribir_y_enter_combo_por_name(driver,wait,"selusos_de_vehiculos",ctx.vehiculo.uso,1)
+        logging.info(f"🖱️ Opción seleccionada para el uso de vehiculos → '{ctx.vehiculo.uso}'")
         time.sleep(3)
-        #escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",{'SI' if ctx.vehiculo.gas == 'GAS' else 'NO'},1)
-        escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",{'SI' if ctx.vehiculo.gas else 'NO'},1)
+        #----------------------------
+        gas = 'SI' if ctx.vehiculo.gas else 'NO'
+        escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",gas,1)
+        logging.info(f"🖱️ Opción seleccionada para GAS → '{gas}'")
         time.sleep(3)
+        #----------------------------
         escribir_input_por_name(driver, wait, "txtnro_pasajeros",ctx.vehiculo.ocupantes,False)
         time.sleep(1)
-        escribir_y_enter_combo_por_name(driver,wait,"selprocedenciaexterna",{'SI' if ctx.vehiculo.seguro else 'NO'},1) 
+        #----------------------------
+        soat = 'SI' if ctx.vehiculo.seguro else 'NO'
+        escribir_y_enter_combo_por_name(driver,wait,"selprocedenciaexterna",soat,1)
+        logging.info(f"🖱️ Opción seleccionada para SOAT → '{soat}'")
         time.sleep(3)
-        escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",{'SI' if ctx.vehiculo.inspeccion else 'NO'},1) 
-
+        #----------------------------
+        inspeccion = 'SI' if ctx.vehiculo.inspeccion else 'NO'
+        escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",inspeccion,1)
+        logging.info(f"🖱️ Opción seleccionada para INSPECCION → '{inspeccion}'")
+        time.sleep(3)
+        #----------------------------
         if ctx.vehiculo.uso == 'PARTICULAR':
-            time.sleep(3)
             escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
+            logging.info(f"🖱️ Opción seleccionada para Tipo de persona → '{ctx.cliente.tipo_persona}'")
             time.sleep(3)
+            #----------------------------
             escribir_y_enter_combo_por_name(driver,wait,"seltiempo_de_credito",ctx.credito.tiempo,2)
+            logging.info(f"🖱️ Opción seleccionada para el tiempo de credito → '{ctx.credito.tiempo}'")
             time.sleep(3)
+            #----------------------------
             escribir_input_por_name(driver, wait, "txtvendedor", "CAMILA AGUIRRE",False)
             time.sleep(1)
-            escribir_y_enter_combo_por_name(driver,wait,"sellocalización",{'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'},2)
-
-        #-------------------------
-        time.sleep(3)
+            #----------------------------
+            localizacion = 'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'
+            escribir_y_enter_combo_por_name(driver,wait,"sellocalización",localizacion,2)
+            logging.info(f"🖱️ Opción seleccionada en localización → '{localizacion}'")
+            time.sleep(3)
+        #----------------------------
         btn_cal = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Calcular Planes']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_cal)
         driver.execute_script("arguments[0].click();", btn_cal)
         logging.info("🖱️ Clic en 'Calcular Planes'")
-
+        #----------------------------
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
         logging.info("✅ Carga finalizada")
-
-        logging.info("------------------------------------")
-
+        #----------------------------
         fieldset_plan = wait.until(EC.presence_of_element_located((By.XPATH, "//fieldset[.//span[normalize-space()='Plan 1']]")))
         wait.until(EC.visibility_of(fieldset_plan))
         logging.info("✅ Plan localizado y visible")
-
+        #----------------------------
         boton_seleccionar = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[normalize-space()='Seleccionar'] | .//a[normalize-space()='Seleccionar']")))
         driver.execute_script("arguments[0].click();", boton_seleccionar)
         logging.info("🖱️ Clic en Seleccionar")
-
+        #----------------------------
         tab_fraccionamiento = wait.until(EC.element_to_be_clickable((By.XPATH,"//span[contains(@class,'x-tab-strip-text') and normalize-space()='Fraccionamiento']")))
         tab_fraccionamiento.click()
         logging.info("🖱️ Clic en Fraccionamiento")
-
+        #----------------------------
         # esperar que NO exista el overlay
         wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "ext-el-mask")))
-
-        #ingresar_fecha_extjs(driver,wait,name="fecinicertificado",fecha_ddmmyyyy="16/03/2026")
-
+        logging.info("✅ Carga finalizada")   
+        #----------------------------
+        #ingresar_fecha_extjs(driver,wait,name="fecinicertificado",fecha_ddmmyyyy="16/03/2026",texto=f"Fecha de Inicio de Certificado")
         #click_fuera(driver)
-
         tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
-
         tiempo_12 = ctx.credito.tiempo == "12 MESES"
         es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
-
-        #num_cuotas = 12 if tiempo_12 else 24
 
         if es_juridica:
             tipo_plan = "PLAN CC CNT PERSONA JURIDICA"
@@ -366,57 +374,82 @@ def main():
                 else "PLAN CC CNT PERSONA NATURAL"
             )
 
-        #escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento", "PLAN 2020 CC PN 0% USD 12 CUOTAS",2)
         escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento",tipo_plan,2)
+        logging.info(f"🖱️ Opción seleccionada para Tipo de Plan → '{tipo_plan}'")
         time.sleep(1)
+        #----------------------------
         escribir_input_por_name(driver, wait, "numcuotas", ctx.credito.cuotas,False)
         time.sleep(1)
+        #----------------------------
         escribir_y_enter_combo_por_name(driver, wait, "idetipotarjeta",tipo_cuenta,2)
-
-        fecha_ddmmyyyy = (datetime.strptime(get_pos_fecha_dmy(), "%d/%m/%Y") + timedelta(days=7)).strftime("%d/%m/%Y")
-        ingresar_fecha_extjs(driver,wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy)
-
-        click_fuera(driver)
-
+        logging.info(f"🖱️ Clic en tipo de cuenta → {tipo_cuenta}")
         time.sleep(3)
+        #----------------------------
+        fecha_ddmmyyyy = (datetime.strptime(get_pos_fecha_dmy(), "%d/%m/%Y") + timedelta(days=7)).strftime("%d/%m/%Y")
+        ingresar_fecha_extjs(driver,wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy,texto=f"Fecha primer vencimiento")
+        time.sleep(3)
+        #----------------------------
+        click_fuera(driver)
+        #----------------------------
         btn_generar = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_generar)
         driver.execute_script("arguments[0].click();", btn_generar)
         logging.info("🖱️ Clic en 'Generar'")
-
         time.sleep(5)
-
+        #----------------------------
         btn_ing_cliente = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Ingresar Cliente']")))
         driver.execute_script("arguments[0].click();", btn_ing_cliente)
         logging.info("🖱️ Clic en 'Ingresar Cliente'")
-
         time.sleep(5)
-
+        #----------------------------
         wait.until(EC.presence_of_element_located((By.XPATH,"//li[contains(@class,'x-tab-strip-active')]//span[normalize-space()='Cliente']")))
         logging.info("✅ Tab 'Cliente' activa")
-
+        #----------------------------
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR,"div.ext-el-mask, div.ext-el-mask-msg")))
-        #logging.info("esperar que NO haya máscara ExtJS")
-
+        logging.info("✅ Carga finalizada")   
+        #----------------------------
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR,"div.x-panel-body div.x-toolbar")))
         logging.info("✅ Toolbar del grid cargado")
-
+        #----------------------------
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR,"div.ext-el-mask, div.ext-el-mask-msg")))
-        #logging.info("✅ No hay máscara ExtJS")
-
+        logging.info("✅ Carga finalizada")  
+        #----------------------------
         click_agregar_cliente_extjs(driver)
         logging.info("🖱️ Clic en 'Agregar'")
-
+        #----------------------------
         titulo_modal = obtener_titulo_modal_extjs(driver, wait)
 
         if titulo_modal is None:
             raise Exception("No apareció modal para registrar cliente")
 
-        #logging.info(f"ℹ️ Modal '{titulo_modal}' → trabajar dentro del modal")
+        time.sleep(5)
+        #--------------------------
+        # from Metodos.funciones import cambiar_tipo_persona
+        # cambiar_tipo_persona(driver, wait, texto="PERSONA JURÍDICA")
+        #--------------------------
+        # try:
+
+        #     #modal = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
+        #     from Metodos.funciones import cambiar_tipo_persona
+        #     #seleccionar_combo_extjs(driver, wait, "idptipotercero",f"PERSONA {ctx.cliente.tipo_persona.upper()}")
+        #     #seleccionar_combo_extjs(driver, wait, "idptipotercero")
+        #     #cambiar_tipo_persona(driver, wait,texto=f"PERSONA {ctx.cliente.tipo_persona.upper()}")
+        #     cambiar_tipo_persona(driver, wait, texto="PERSONA JURIDICA")
+
+        #     input("Esperar")
+        #     # escribir_y_enter_combo_por_name(driver,wait,"idptipotercero",f"PERSONA {ctx.cliente.tipo_persona.upper()}",1)
+        #     # time.sleep(1)
+        #     # escribir_y_enter_combo_por_name(driver,wait,"idptipodocumento",f"PERSONA {ctx.cliente.tipo_doc.upper()}",1)
+        #     # time.sleep(1)
+        # except Exception as e:
+        #     raise Exception(f"Error seleccionando tipo de tercero o documento | Motivo: {e}")
+        # #--------------------------
 
         time.sleep(5)
-        dni_cot = os.getenv("dni_cot")
-        escribir_input_en_modal(driver,wait,"numerodoc",dni_cot,True)
+        dni_cot_ej = os.getenv("dni_cot")
+        #ruc_cot_ej = os.getenv("ruc_cot")
+        #escribir_input_en_modal(driver,wait,"numerodoc",{ruc_cot_ej if ctx.cliente.tipo_doc.upper() == 'RUC' else dni_cot_ej},True)
+        escribir_input_en_modal(driver,wait,"numerodoc",dni_cot_ej,True)
 
         time.sleep(3)
 
@@ -491,7 +524,7 @@ def main():
 
                 btn_excluir = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.tb-user-del")))
                 btn_excluir.click()
-                logging.info("🖱️ Click en Excluir")
+                logging.info("🖱️ Clic en Excluir")
                 time.sleep(3)
 
                 btn_si = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sí']")))
@@ -534,7 +567,7 @@ def main():
     except Exception as e:
         logging.info(f"⚠️ Conclusión: {e}")
         tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-        enviarCorreoGeneral(str(e),ruta_carpeta,ctx.id_cot,ctx.solicitud.capitalize())
+        enviarCorreoGeneral(str(e),ruta_carpeta,ctx)
     finally:
 
         if driver:

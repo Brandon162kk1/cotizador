@@ -25,7 +25,7 @@ def enviarCorreoGeneral(fallo,ruta_carpeta,ctx):
 
         Datos del Cliente :
 
-        Nombre : { nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social}"
+        Nombre : { nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social}
         Número de Documento : {ctx.cliente.num_doc}
 
         Datos del Vehículo:

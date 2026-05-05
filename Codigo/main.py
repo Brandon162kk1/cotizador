@@ -256,7 +256,7 @@ def main():
         click_fuera(driver)
         #----------------------------
         #texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} - {'TAXI' if nom_empresa.upper() == 'DONGFENG' else 'TRANSPORTE DE PERSONAL'}"
-        texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} - TAXI"
+        texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} TAXI"
         seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
         logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
         time.sleep(3)

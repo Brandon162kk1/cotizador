@@ -31,13 +31,15 @@ def enviarCorreoGeneral(fallo,ruta_carpeta,ctx):
         Datos del Vehículo:
 
         Uso : {ctx.vehiculo.uso.capitalize()}
-        Vehículo : {ctx.vehiculo.marca}|{ctx.vehiculo.modelo}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}
+        Vehículo : {ctx.vehiculo.modelo}|{ctx.vehiculo.marca}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}
         Año: {ctx.vehiculo.anio}
         Precio ($): {ctx.vehiculo.valor}
         Gas : {'Si' if ctx.vehiculo.gas else 'No'}
         Asientos : {ctx.vehiculo.ocupantes}
         Soat : {'Si' if ctx.vehiculo.seguro else 'No'}
         Inspección : {'Si' if ctx.vehiculo.inspeccion else 'No'}
+
+        Modalidad: {ctx.credito.forma_pago.capitalize()} en {ctx.credito.cuotas} cuota(s)
 
         Error Técnico y evidencia visual :
 

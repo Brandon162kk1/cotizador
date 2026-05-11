@@ -15,6 +15,8 @@ from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
 from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs
 
+from Apis.get import codigo_compania
+
 # -- Imports --
 import logging
 import os
@@ -22,7 +24,6 @@ import time
 import sys
 import io
 import json
-import requests
 
 # Forzar la salida en UTF-8 para evitar UnicodeEncodeError
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -202,43 +203,12 @@ def main():
         driver.execute_script("arguments[0].click();", ingresar_btn)
         logging.info("🖱️ Clic en 'Ingresar'")
 
-        #-------- FUNCIONA CON VOLUME --------------
-        # codigo_path = "/codigo_rimac_SAS/codigo.txt"
- 
-        # logging.info("⏳ Esperando código")
-        # while not os.path.exists(codigo_path):
-        #     time.sleep(2)
- 
-        # with open(codigo_path, "r") as f:
-        #     codigo = f.read().strip()
- 
-        # logging.info(f"✅ Código recibido desde volumen: {codigo}")
-
-        #-------- FUNCIONA CON API --------------
-        url_api_cod_cot = os.getenv("url_api_cod_cot")
-        while True:
-            resp = requests.get(f"{url_api_cod_cot}")
-
-            if resp.status_code == 200:
-                codigo = resp.json()["codigo"]
-                logging.info(f"Código recibido: {codigo}")
-                break
-
-            time.sleep(2)
-
-        #---------------------------------------------
+        codigo = codigo_compania()
 
         token_input = wait.until(EC.presence_of_element_located((By.ID, "TOKEN")))
         token_input.clear()
         token_input.send_keys(codigo)
         logging.info(f"⌨️ Digitando {codigo} correctamente en 'TOKEN'")
-
-        # try:
-        #     os.remove(codigo_path)
-        # except FileNotFoundError:
-        #     raise Exception(" No se encontró código al intentar eliminarlo (ya fue borrado)")
-        # except Exception as e:
-        #     raise Exception(f" Error al eliminar código : {e}")
 
         ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn2)

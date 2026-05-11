@@ -5,7 +5,7 @@ import logging
 import time
 
 url_api_cod_cot = os.getenv("url_api_cod_cot")
-API_KEY = os.getenv("API_KEY_RIMAC")
+API_KEY = os.getenv("API_KEY_RIMAC_SAS")
 
 headers = {
     "x-api-key": f"{API_KEY}"

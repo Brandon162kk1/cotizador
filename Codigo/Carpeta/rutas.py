@@ -3,7 +3,7 @@ import time
 import logging
 import base64
 
-from Tiempo.fechas_horas import get_timestamp,get_dia,get_mes,get_anio
+from Tiempo.fechas_horas import get_timestamp#,get_dia,get_mes,get_anio
 from io import StringIO
 
 #------Carpetas de Descargas y Volumen del Docker----------
@@ -65,6 +65,30 @@ def esperar_archivos_nuevos(directorio, archivos_antes, extension, cantidad, tim
 
     return None
 
+def renombrar_carpeta(ruta_carpeta):
+    # Cerrar handlers del logger
+    for handler in logging.getLogger().handlers[:]:
+        handler.close()
+        logging.getLogger().removeHandler(handler)
+
+    # Obtener carpeta padre
+    carpeta_padre = os.path.dirname(ruta_carpeta)
+
+    # Obtener nombre actual
+    nombre_actual = os.path.basename(ruta_carpeta)
+
+    # Nuevo nombre
+    nuevo_nombre = f"Error_{nombre_actual}"
+
+    # Nueva ruta completa
+    nueva_ruta = os.path.join(carpeta_padre, nuevo_nombre)
+
+    # Renombrar
+    os.rename(ruta_carpeta, nueva_ruta)
+
+    #Actualizarla
+    ruta_carpeta = nueva_ruta
+
 def crear_carpeta_descargas(organizacion,ctx):
 
     # --- 👇 CREAR UN BUFFER NUEVO POR CADA CORREO ---
@@ -82,7 +106,8 @@ def crear_carpeta_descargas(organizacion,ctx):
     carpeta_base = os.path.join(download_path, f"{prefijo}Jishu_Car")
     carpeta_empresa = os.path.join(carpeta_base, organizacion)
     carpeta_solicitud = os.path.join(carpeta_empresa,ctx.solicitud.capitalize())
-    carpeta_unica = os.path.join(carpeta_solicitud, f"{ctx.id_cot}_{get_dia()}-{get_mes()}-{get_anio()}_{get_timestamp()}")
+    #carpeta_unica = os.path.join(carpeta_solicitud, f"Cot_{ctx.id_cot}_{get_dia()}-{get_mes()}-{get_anio()}_{get_timestamp()}")
+    carpeta_unica = os.path.join(carpeta_solicitud, f"{ctx.id_cot}_{get_timestamp()}")
 
     # 🏗️ crear estructura completa
     os.makedirs(carpeta_unica, exist_ok=True)

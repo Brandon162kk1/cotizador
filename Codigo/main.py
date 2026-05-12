@@ -9,7 +9,7 @@ from Tiempo.fechas_horas import get_pos_fecha_dmy
 from Apis.put import enviar_documento
 from Apis.post import enviarCorreoGeneral
 from Chrome.driver import tomar_capturar,abrirDriver
-from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas
+from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renombrar_carpeta
 
 from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
@@ -555,6 +555,7 @@ def main():
         logging.info(f"⚠️ Conclusión: {e}")
         tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
         enviarCorreoGeneral(str(e),ruta_carpeta,ctx)
+        renombrar_carpeta(ruta_carpeta)
     finally:
 
         if driver:

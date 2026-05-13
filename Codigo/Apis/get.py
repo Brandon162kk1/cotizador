@@ -18,7 +18,7 @@ def codigo_compania():
 
         if resp.status_code == 200:
             codigo = resp.json()["codigo"]
-            logging.info(f"Código recibido: {codigo}")
+            logging.info(f"✅ Código recibido: {codigo}")
             break
 
         time.sleep(2)

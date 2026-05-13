@@ -3,8 +3,9 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from textwrap import dedent
+#from textwrap import dedent
 from Carpeta.rutas import obtener_imagenes_error
+from jinja2 import Environment, FileSystemLoader
 
 load_dotenv("/app/variables.env")
 
@@ -16,45 +17,45 @@ para_lista = para_venv.split(",") if para_venv else []
 copia_venv = os.getenv("copia_jc")
 copias_lista = copia_venv.split(",") if copia_venv else []
 
-def enviarCorreoGeneral(fallo,ruta_carpeta,ctx):
+ruta_plantilla = "/app/Codigo/Plantillas/Correo"
+env = Environment(loader=FileSystemLoader(ruta_plantilla))
+
+def enviarCorreoGeneral(ruta_carpeta,ctx):
     
+    template = env.get_template("error.html")
+
     imagenes = obtener_imagenes_error(ruta_carpeta)
 
     nombre_completo = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}"
-    mensaje = dedent(f"""Hubo problemas al cotizar un vehículo en la compañia Rimac.
 
-        Datos del Cliente :
-
-        Nombre : { nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social}
-        Número de Documento : {ctx.cliente.num_doc}
-
-        Datos del Vehículo:
-
-        Uso : {ctx.vehiculo.uso.capitalize()}
-        Vehículo : {ctx.vehiculo.modelo}|{ctx.vehiculo.marca}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}
-        Año: {ctx.vehiculo.anio}
-        Precio ($): {ctx.vehiculo.valor}
-        Gas : {'Si' if ctx.vehiculo.gas else 'No'}
-        Asientos : {ctx.vehiculo.ocupantes}
-        Soat : {'Si' if ctx.vehiculo.seguro else 'No'}
-        Inspección : {'Si' if ctx.vehiculo.inspeccion else 'No'}
-
-        Modalidad: {ctx.credito.forma_pago.capitalize()} en {ctx.credito.cuotas} cuota(s)
-
-        Error Técnico y evidencia visual :
-
-        {fallo}
-    """)
-
-    mensaje = "\n".join(line.strip() for line in mensaje.splitlines())
+    html = template.render(
+        titulo=f"⚠️ Problemas en la {ctx.solicitud.capitalize()} #{ctx.id_cot}",
+        cliente=f"{nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social }",
+        num_doc=ctx.cliente.num_doc,
+        celular=ctx.cliente.celular,
+        correo=ctx.cliente.correo,
+        uso=ctx.vehiculo.uso.capitalize(),
+        vehiculo=f"{ctx.vehiculo.modelo}|{ctx.vehiculo.marca}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}",
+        año=ctx.vehiculo.anio,
+        precio=f"{ctx.vehiculo.valor}",
+        gas='Si' if ctx.vehiculo.gas else 'No',
+        asientos=ctx.vehiculo.ocupantes,
+        soat='Si' if ctx.vehiculo.seguro else 'No',
+        inspeccion='Si' if ctx.vehiculo.inspeccion else 'No',
+        modalidad=f"{ctx.credito.forma_pago.capitalize()} en {ctx.credito.cuotas} { 'cuota' if ctx.credito.cuotas == 1 else ' cuotas'}",
+        screenshot = (
+            f"data:image/png;base64,{imagenes[0]}"
+            if imagenes else None
+        )
+    )
 
     payload = {
         "Para": para_lista,
         "Copia": copias_lista,
-        "Asunto": f"Error generando la {ctx.solicitud.capitalize()} en JishuCar para el Movimiento {ctx.id_cot}",
-        "Mensaje": mensaje,
-        "imagen_nombre": f"Error_{ctx.id_cot}.png",
-        "imagen_base64": imagenes[0] if imagenes else None
+        "Asunto": f"Error generando la {ctx.solicitud.capitalize()} en JishuCar",
+        "Mensaje": html
+        #"imagen_nombre": f"Error_{ctx.id_cot}.png",
+        #"imagen_base64": imagenes[0] if imagenes else None
     }
 
     try:

@@ -1,0 +1,219 @@
+﻿<div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#f5f5f5;">
+
+    <!-- HEADER -->
+    <div style="background:#dc2626;color:white;padding:25px;text-align:center">
+        <h1 style="margin:0;font-size:28px;">
+            {{ titulo }}
+        </h1>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div style="padding:25px;background:white">
+
+        <!-- CLIENTE -->
+        <div style="margin-bottom:30px;">
+
+            <h2 style="color:#002D72;border-bottom:2px solid #f0f0f0;padding-bottom:10px;">
+                👤 Datos del Cliente
+            </h2>
+
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;width:35%;">
+                        Cliente:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ cliente }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Documento:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ num_doc }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;width:35%;">
+                        Celular:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ celular }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Correo:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ correo }}
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+
+        <!-- VEHÍCULO -->
+        <div style="margin-bottom:30px;">
+
+            <h2 style="color:#217346;border-bottom:2px solid #f0f0f0;padding-bottom:10px;">
+                🚗 Datos del Vehículo
+            </h2>
+
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;width:35%;">
+                        Vehículo:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ vehiculo }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Año:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ año }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;">
+                        Valor:
+                    </td>
+
+                    <td style="padding:10px;color:#217346;font-weight:bold;">
+                        USD {{ precio }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Uso:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ uso }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;">
+                        Asientos:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ asientos }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Gas:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ gas }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;">
+                        Incluye SOAT:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ soat }}
+                    </td>
+                </tr>
+
+                <tr style="background:#fafafa;">
+                    <td style="padding:10px;font-weight:bold;">
+                        Requiere Inspección:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ inspeccion }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:10px;font-weight:bold;">
+                        Modalidad:
+                    </td>
+
+                    <td style="padding:10px;">
+                        {{ modalidad }}
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+
+        <!-- ERROR -->
+        <!--<div style="margin-bottom:30px;">
+
+            <h2 style="color:#dc2626;border-bottom:2px solid #f0f0f0;padding-bottom:10px;">
+                ⚠️ Error Técnico
+            </h2>
+
+            <div style="
+          background:#f4f4f4;
+          padding:15px;
+          border-radius:8px;
+          white-space:pre-wrap;
+          font-family:monospace;
+          font-size:12px;
+          border:1px solid #e5e5e5;
+      ">
+                {{ error_tecnico }}
+            </div>
+
+        </div>-->
+
+
+        <!-- SCREENSHOT -->
+        {% if screenshot %}
+        <div style="margin-top:30px;">
+
+            <h2 style="color:#002D72;border-bottom:2px solid #f0f0f0;padding-bottom:10px;">
+                📸 Evidencia Visual
+            </h2>
+
+            <img src="{{ screenshot }}"
+                 style="
+             width:100%;
+             border-radius:10px;
+             border:1px solid #ddd;
+             margin-top:15px;
+           ">
+
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- FOOTER -->
+    <div style="background:#f4f4f4;padding:18px;text-align:center;font-size:12px;color:#777;">
+        Sistema Automático JishuCar
+    </div>
+
+</div>

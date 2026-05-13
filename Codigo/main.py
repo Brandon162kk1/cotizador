@@ -3,6 +3,7 @@
 from datetime import timedelta,datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
@@ -136,6 +137,8 @@ class Cliente:
         self.fecha_nac = datetime.strptime(fecha, "%d-%m-%Y").strftime("%d/%m/%Y") if fecha else None
         self.sexo = data.get("SEXO")
         self.estado_civil = data.get("ESTADO_CIVIL")
+        self.celular = data.get("CELULAR")
+        self.correo = data.get("CORREO")
         self.tipo_via = data.get("TIPO_VIA")
         self.nom_via = data.get("NOMBRE_VIA")
         self.num_via = data.get("NUMERO_VIA")
@@ -214,19 +217,49 @@ def main():
         driver.execute_script("arguments[0].click();", ingresar_btn2)
         logging.info("🖱️ Clic en 'Ingresar'")
 
+        URL_SAS = "https://www.rimac.com.pe/SAS/index.html"
+        XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
+        max_intentos = 3
+
+        for intento in range(1, max_intentos + 1):
+
+            try:
+                logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
+
+                wait.until(EC.url_contains(URL_SAS))
+
+                span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
+
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});",span_transacciones)
+                actions = ActionChains(driver)
+                actions.double_click(span_transacciones).perform()
+                logging.info("🖱️ Doble clic realizado en 'Transacciones'")
+
+                time.sleep(2)
+                break
+
+            except TimeoutException:
+
+                #logging.warning(f"⚠️ No cargó correctamente la página o el botón no estuvo disponible. Refresh...")
+                driver.refresh()
+                time.sleep(3)
+
+        else:
+            raise Exception("❌ Credenciales o Token inválido / No se pudo cargar SAS")
+
         #----------------------------
-        actions = ActionChains(driver)
-        span_transacciones = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Transacciones']")))
-        actions.double_click(span_transacciones).perform()
-        logging.info("🖱️ Doble clic realizado en 'Transacciones'")
-        time.sleep(3)
+        # actions = ActionChains(driver)
+        # span_transacciones = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Transacciones']")))
+        # actions.double_click(span_transacciones).perform()
+        # logging.info("🖱️ Doble clic realizado en 'Transacciones'")
+        # time.sleep(3)
         #----------------------------
-        span_emision = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Cotizar']")))
+        span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']"))) # L
         actions.double_click(span_emision).perform()
         logging.info("🖱️ Doble clic realizado en 'Cotizar'")
         time.sleep(3)
         #----------------------------
-        span_mantenimiento = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Registrar Cotización']")))
+        span_mantenimiento = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Registrar Cotización']"))) # L
         span_mantenimiento.click()
         logging.info("🖱️ Clic realizado en 'Registrar Cotización'")
         time.sleep(10)
@@ -284,7 +317,7 @@ def main():
         time.sleep(1)
         #----------------------------
         escribir_y_enter_combo_por_name(driver,wait,"selusos_de_vehiculos",ctx.vehiculo.uso,1)
-        logging.info(f"🖱️ Opción seleccionada para el uso de vehiculos → '{ctx.vehiculo.uso}'")
+        logging.info(f"🖱️ Opción seleccionada para el uso de vehículos → '{ctx.vehiculo.uso}'")
         time.sleep(3)
         #----------------------------
         gas = 'SI' if ctx.vehiculo.gas else 'NO'
@@ -311,7 +344,7 @@ def main():
             time.sleep(3)
             #----------------------------
             escribir_y_enter_combo_por_name(driver,wait,"seltiempo_de_credito",ctx.credito.tiempo,2)
-            logging.info(f"🖱️ Opción seleccionada para el tiempo de credito → '{ctx.credito.tiempo}'")
+            logging.info(f"🖱️ Opción seleccionada para el tiempo de crédito → '{ctx.credito.tiempo}'")
             time.sleep(3)
             #----------------------------
             escribir_input_por_name(driver, wait, "txtvendedor", "CAMILA AGUIRRE",False)
@@ -554,7 +587,7 @@ def main():
     except Exception as e:
         logging.info(f"⚠️ Conclusión: {e}")
         tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-        enviarCorreoGeneral(str(e),ruta_carpeta,ctx)
+        enviarCorreoGeneral(ruta_carpeta,ctx)
         renombrar_carpeta(ruta_carpeta)
     finally:
 

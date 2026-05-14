@@ -32,6 +32,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 # --- Json desde variable de entorno ---
 data = json.loads(os.getenv("DATA", "{}"))
 
+url_api_cod_cot = os.getenv("url_api_cod_cot")
+API_KEY = os.getenv("API_KEY_RIMAC_SAS")
+
 # ------------------ HELPERS --------------
 def to_bool(value):
     if isinstance(value, bool):
@@ -206,7 +209,7 @@ def main():
         driver.execute_script("arguments[0].click();", ingresar_btn)
         logging.info("🖱️ Clic en 'Ingresar'")
 
-        codigo = codigo_compania()
+        codigo = codigo_compania(url_api_cod_cot,API_KEY)
 
         token_input = wait.until(EC.presence_of_element_located((By.ID, "TOKEN")))
         token_input.clear()
@@ -339,7 +342,8 @@ def main():
         time.sleep(3)
         #----------------------------
         if ctx.vehiculo.uso == 'PARTICULAR':
-            escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
+            #escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
+            escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",f"NATURAL",2)
             logging.info(f"🖱️ Opción seleccionada para Tipo de persona → '{ctx.cliente.tipo_persona}'")
             time.sleep(3)
             #----------------------------
@@ -361,11 +365,32 @@ def main():
         logging.info("🖱️ Clic en 'Calcular Planes'")
         #----------------------------
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-        logging.info("✅ Carga finalizada")
+        #logging.info("✅ Carga finalizada")
         #----------------------------
-        fieldset_plan = wait.until(EC.presence_of_element_located((By.XPATH, "//fieldset[.//span[normalize-space()='Plan 1']]")))
-        wait.until(EC.visibility_of(fieldset_plan))
-        logging.info("✅ Plan localizado y visible")
+        modal_mensaje = (By.XPATH,"//div[contains(@class,'x-window-dlg')]//span[contains(text(),'No se encontraron planes configurados')]")
+        fieldset_plan = (By.XPATH,"//fieldset[.//span[normalize-space()='Plan 1']]")
+
+        resultado = wait.until(
+            EC.any_of(
+                EC.visibility_of_element_located(modal_mensaje),
+                EC.visibility_of_element_located(fieldset_plan)
+            )
+        )
+
+        texto = resultado.text.strip()
+
+        if "No se encontraron planes configurados" in texto:
+            logging.warning("⚠️ Apareció modal")
+            # btn_aceptar = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Aceptar']")))
+            # btn_aceptar.click()
+            raise Exception(texto)
+        else:
+            logging.info("✅ Plan localizado y visible")
+
+        #----------------------------
+        # fieldset_plan = wait.until(EC.presence_of_element_located((By.XPATH, "//fieldset[.//span[normalize-space()='Plan 1']]")))
+        # wait.until(EC.visibility_of(fieldset_plan))
+        # logging.info("✅ Plan localizado y visible")
         #----------------------------
         boton_seleccionar = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[normalize-space()='Seleccionar'] | .//a[normalize-space()='Seleccionar']")))
         driver.execute_script("arguments[0].click();", boton_seleccionar)
@@ -383,7 +408,8 @@ def main():
         #click_fuera(driver)
         tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
         tiempo_12 = ctx.credito.tiempo == "12 MESES"
-        es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
+        #es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
+        es_juridica = ctx.cliente.tipo_persona.upper() == "NATURAL"
 
         if es_juridica:
             tipo_plan = "PLAN CC CNT PERSONA JURIDICA"

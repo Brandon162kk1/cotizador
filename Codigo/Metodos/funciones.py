@@ -192,7 +192,8 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     # 🔁 10️⃣ FALLBACK: seleccionar desde la lista si no confirmó
     if not hidden.get_attribute("value"):
-        logging.info("⚠️ Enter no confirmó, intentando selección directa")
+        #logging.info("⚠️ Enter no confirmó, intentando selección directa")
+        raise Exception("Enter no confirmó, intentando selección directa")
 
         opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(), '{texto.split('|')[0]}')]")))
         opcion.click()

@@ -406,19 +406,20 @@ def main():
         #----------------------------
         #ingresar_fecha_extjs(driver,wait,name="fecinicertificado",fecha_ddmmyyyy="16/03/2026",texto=f"Fecha de Inicio de Certificado")
         #click_fuera(driver)
-        tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
+        #tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
+        tipo_cuenta = "Cuenta de Ahorros"
         tiempo_12 = ctx.credito.tiempo == "12 MESES"
         #es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
-        es_juridica = ctx.cliente.tipo_persona.upper() == "NATURAL"
+        #es_juridica = ctx.cliente.tipo_persona.upper() == "NATURAL"
 
-        if es_juridica:
-            tipo_plan = "PLAN CC CNT PERSONA JURIDICA"
-        else:
-            tipo_plan = (
-                "PLAN 2020 CC PN 0% USD 12 CUOTAS"
-                if tiempo_12
-                else "PLAN CC CNT PERSONA NATURAL"
-            )
+        # if es_juridica:
+        #     tipo_plan = "PLAN CC CNT PERSONA JURIDICA"
+        # else:
+        tipo_plan = (
+            "PLAN 2020 CC PN 0% USD 12 CUOTAS"
+            if tiempo_12
+            else "PLAN CC CNT PERSONA NATURAL"
+        )
 
         escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento",tipo_plan,2)
         logging.info(f"🖱️ Opción seleccionada para Tipo de Plan → '{tipo_plan}'")

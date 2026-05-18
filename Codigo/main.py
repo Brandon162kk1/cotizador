@@ -89,10 +89,12 @@ class Vehiculo:
         self.tipo = data.get("TIPO_VEH")
         self.clase = data.get("CLASE_VEH")
 
-        if self.organizacion and "dongfeng" in self.organizacion.lower():
-            self.marca = "DONG FENG"
-        else:
-            self.marca = "PANGU"
+        # if self.organizacion and "dongfeng" in self.organizacion.lower():
+        #     self.marca = "DONG FENG"
+        # else:
+        #     self.marca = "PANGU"
+
+        self.marca = data.get("MARC_VEH")
 
         self.anio = safe_int(data.get("AÑO_FAB"))
         self.valor = data.get("PRECIO")
@@ -107,7 +109,7 @@ class Vehiculo:
         self.distrito_veh = data.get("DISTRITO_CARRO")
 
     def __str__(self):
-        return f"{self.modelo}|{self.marca}|{self.tipo}|{self.clase}"
+        return f"{self.modelo}|{self.marca.upper()}|{self.tipo}|{self.clase}"
 
 class Usuario:
     def __init__(self, data: dict):

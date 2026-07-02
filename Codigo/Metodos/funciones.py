@@ -86,11 +86,14 @@ def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
     #     f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']"
     # )))
 
-    opcion = wait.until(EC.element_to_be_clickable((
-        By.XPATH,
-        f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
-        f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto_opcion}')]"
-    )))
+    try:
+        opcion = wait.until(EC.element_to_be_clickable((
+            By.XPATH,
+            f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
+            f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto_opcion}')]"
+        )))
+    except TimeoutException as e:
+        raise Exception(f"Plan '{texto_opcion}' no configurado en Rimac | Motivo : {e}")
 
     opcion.click()
     #logging.info("✅ Opción seleccionada")
@@ -133,27 +136,21 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     # 1️⃣ esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
-
     # 2️⃣ localizar hidden por NAME
     hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
-
     # 3️⃣ subir solo al contenedor de ese combo
     contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
-
     # 4️⃣ input visible SOLO de ese combo
     input_visible = contenedor.find_element(By.XPATH, ".//input[@type='text' and contains(@class,'x-form-field')]")
-
     # 5️⃣ focus + click fuerte
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_visible)
     driver.execute_script("arguments[0].focus();", input_visible)
     driver.execute_script("arguments[0].click();", input_visible)
     #logging.info("🖱️ Clic en combo")
-
     # 6️⃣ limpiar y escribir
     input_visible.send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
     input_visible.send_keys(texto)
     #logging.info("⌨️ Digitando texto")
-
     # 7️⃣ esperar posibles cargas
     #wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
@@ -170,19 +167,15 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
         # logging.info("↵ Enter enviado")
         # time.sleep(2)
 
-
         # 7️⃣ esperar posibles cargas
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-
         # 8️⃣ ENTER FUERTE
         input_visible.send_keys(Keys.ENTER)
         #logging.info("↵ Enter enviado")
 
     else:
-
         # 7️⃣ esperar posibles cargas
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-
         # 8️⃣ ENTER FUERTE
         input_visible.send_keys(Keys.ENTER)
         #logging.info("↵ Enter enviado")
@@ -223,6 +216,7 @@ def ingresar_fecha_extjs(driver, wait, name, fecha_ddmmyyyy,texto):
 
 def seleccionar_modelo_extjs(driver,wait,texto_busqueda,texto_opcion,name_hidden="selmodelodevehiculo"):
 
+
     # 1️⃣ Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
 
@@ -231,17 +225,16 @@ def seleccionar_modelo_extjs(driver,wait,texto_busqueda,texto_opcion,name_hidden
 
     # 3️⃣ Input visible CORRECTO (anclado al hidden)
     input_visible = hidden.find_element(By.XPATH,"./ancestor::div[contains(@class,'x-form-field-wrap')]//input[@type='text']")
-
     input_visible.click()
     input_visible.clear()
     input_visible.send_keys(texto_busqueda)
-
     # 4️⃣ Esperar lista
     wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list-inner')]")))
 
     # 5️⃣ click EXACTO en la opción
     opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']")))
     opcion.click()
+    logging.info(f"✅ Opción '{texto_opcion}' seleccionada")
 
     # 6️⃣ Validar ID numérico
     wait.until(lambda d: hidden.get_attribute("value").isdigit())

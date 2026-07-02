@@ -22,7 +22,7 @@ env = Environment(loader=FileSystemLoader(ruta_plantilla))
 
 def enviarCorreoGeneral(ruta_carpeta,ctx):
     
-    template = env.get_template("error.html")
+    template = env.get_template("plantilla.html")
 
     imagenes = obtener_imagenes_error(ruta_carpeta)
 

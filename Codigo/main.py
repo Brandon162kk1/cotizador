@@ -34,6 +34,7 @@ data = json.loads(os.getenv("DATA", "{}"))
 
 url_api_cod_cot = os.getenv("url_api_cod_cot")
 API_KEY = os.getenv("API_KEY_RIMAC_SAS")
+URL_SAS = os.getenv("urlRimacSAS")
 
 # ------------------ HELPERS --------------
 def to_bool(value):
@@ -89,11 +90,6 @@ class Vehiculo:
         self.tipo = data.get("TIPO_VEH")
         self.clase = data.get("CLASE_VEH")
 
-        # if self.organizacion and "dongfeng" in self.organizacion.lower():
-        #     self.marca = "DONG FENG"
-        # else:
-        #     self.marca = "PANGU"
-
         self.marca = data.get("MARC_VEH")
 
         self.anio = safe_int(data.get("AÑO_FAB"))
@@ -109,7 +105,7 @@ class Vehiculo:
         self.distrito_veh = data.get("DISTRITO_CARRO")
 
     def __str__(self):
-        return f"{self.modelo}|{self.marca.upper()}|{self.tipo}|{self.clase}"
+        return f"{self.modelo.upper()}|{self.marca.upper()}|{self.tipo}|{self.clase}"
 
 class Usuario:
     def __init__(self, data: dict):
@@ -119,6 +115,8 @@ class Usuario:
         self.rol = data.get("ROL")
         self.canal = data.get("CANAL")
         self.correo_asesor = data.get("CORREO_ASESOR")
+        self.vendedor = data.get("VENDEDOR")
+        self.dni = safe_int(data.get("DNI_VENDEDOR"))
 
 class Credito:
     def __init__(self, data: dict):
@@ -189,7 +187,7 @@ def main():
 
         driver,wait = abrirDriver(ruta_carpeta)
 
-        driver.get(os.getenv("urlRimacSAS"))
+        driver.get(URL_SAS)
         logging.info("🔐 Iniciando sesión en RIMAC SAS")
 
         #logging.info(ctx)
@@ -222,7 +220,6 @@ def main():
         driver.execute_script("arguments[0].click();", ingresar_btn2)
         logging.info("🖱️ Clic en 'Ingresar'")
 
-        URL_SAS = "https://www.rimac.com.pe/SAS/index.html"
         XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
         max_intentos = 3
 
@@ -231,7 +228,8 @@ def main():
             try:
                 logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
 
-                wait.until(EC.url_contains(URL_SAS))
+                logging.info(URL_SAS)
+                wait.until(EC.url_contains(URL_SAS+"index.html"))
 
                 span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
 
@@ -244,20 +242,13 @@ def main():
                 break
 
             except TimeoutException:
-
                 #logging.warning(f"⚠️ No cargó correctamente la página o el botón no estuvo disponible. Refresh...")
                 driver.refresh()
                 time.sleep(3)
 
         else:
-            raise Exception("❌ Credenciales o Token inválido / No se pudo cargar SAS")
+            raise Exception("Credenciales o Token inválido / No se pudo cargar SAS")
 
-        #----------------------------
-        # actions = ActionChains(driver)
-        # span_transacciones = wait.until(EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Transacciones']")))
-        # actions.double_click(span_transacciones).perform()
-        # logging.info("🖱️ Doble clic realizado en 'Transacciones'")
-        # time.sleep(3)
         #----------------------------
         span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']"))) # L
         actions.double_click(span_emision).perform()
@@ -353,7 +344,7 @@ def main():
             logging.info(f"🖱️ Opción seleccionada para el tiempo de crédito → '{ctx.credito.tiempo}'")
             time.sleep(3)
             #----------------------------
-            escribir_input_por_name(driver, wait, "txtvendedor", "CAMILA AGUIRRE",False)
+            escribir_input_por_name(driver, wait, "txtvendedor",ctx.usuario.vendedor,False)
             time.sleep(1)
             #----------------------------
             localizacion = 'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'
@@ -371,16 +362,24 @@ def main():
         #----------------------------
         modal_mensaje = (By.XPATH,"//div[contains(@class,'x-window-dlg')]//span[contains(text(),'No se encontraron planes configurados')]")
         fieldset_plan = (By.XPATH,"//fieldset[.//span[normalize-space()='Plan 1']]")
+        toast_error = (By.CSS_SELECTOR,"#message-div .message")
+        modal_validacion = (By.ID, "lblContenido")
 
         resultado = wait.until(
             EC.any_of(
                 EC.visibility_of_element_located(modal_mensaje),
-                EC.visibility_of_element_located(fieldset_plan)
+                EC.visibility_of_element_located(fieldset_plan),
+                EC.visibility_of_element_located(toast_error),
+                EC.visibility_of_element_located(modal_validacion)
             )
         )
 
         texto = resultado.text.strip()
 
+        if resultado.get_attribute("id") == "lblContenido":
+            raise Exception(texto)
+        if "Datos erróneos" in texto:
+            raise Exception(texto)
         if "No se encontraron planes configurados" in texto:
             logging.warning("⚠️ Apareció modal")
             # btn_aceptar = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Aceptar']")))
@@ -495,10 +494,11 @@ def main():
         # #--------------------------
 
         time.sleep(5)
-        dni_cot_ej = os.getenv("dni_cot")
+        #dni_cot_ej = os.getenv("dni_cot")
         #ruc_cot_ej = os.getenv("ruc_cot")
         #escribir_input_en_modal(driver,wait,"numerodoc",{ruc_cot_ej if ctx.cliente.tipo_doc.upper() == 'RUC' else dni_cot_ej},True)
-        escribir_input_en_modal(driver,wait,"numerodoc",dni_cot_ej,True)
+        #escribir_input_en_modal(driver,wait,"numerodoc",dni_cot_ej,True)
+        escribir_input_en_modal(driver,wait,"numerodoc",ctx.usuario.dni,True)
 
         time.sleep(3)
 

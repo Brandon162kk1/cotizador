@@ -1,16 +1,20 @@
-﻿# Usar tu imagen base personalizada
+﻿# Imagen base con Chrome y noVNC
 FROM chromedriver:stable
 
-WORKDIR /app
+# Crear carpetas necesarias
+RUN mkdir -p /app/Downloads
+
+#WORKDIR /app
 
 # Copiar requirements si aplica
 #COPY requirements.txt /app/
-COPY requirements.txt .
+#COPY requirements.txt .
+COPY requirements.txt /app/
 
 # Volver temporalmente a root para instalar dependencias
-USER root
-#RUN pip install --no-cache-dir -r /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+#USER root
+RUN pip install --no-cache-dir -r /app/requirements.txt
+#RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código del proyecto
 COPY Codigo/ /app/Codigo
@@ -18,12 +22,8 @@ COPY Codigo/ /app/Codigo
 # Copiar supervisord.conf
 COPY supervisord.conf /app/
 
-# Crear carpetas necesarias
-RUN mkdir -p /codigo_rimac_SAS \
-    && chown -R user1:user1 /app /codigo_rimac_SAS
-
+# Workdir
 WORKDIR /app
-USER user1
 
 # Variables de entorno
 ENV PYTHONUNBUFFERED=1

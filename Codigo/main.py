@@ -9,15 +9,12 @@ from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
 from Apis.put import enviar_documento
 from Apis.post import enviarCorreoGeneral
+from Apis.get import codigo_compania
 from Chrome.driver import tomar_capturar,abrirDriver
 from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renombrar_carpeta
-
 from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
 from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs
-
-from Apis.get import codigo_compania
-
 # -- Imports --
 import logging
 import os
@@ -209,9 +206,24 @@ def main():
         driver.execute_script("arguments[0].click();", ingresar_btn)
         logging.info("🖱️ Clic en 'Ingresar'")
 
+        token_locator = (By.ID, "TOKEN")
+        mensaje_locator = (By.ID, "lblMensaje")
+
+        resultado_ing = wait.until(
+            EC.any_of(
+                EC.visibility_of_element_located(token_locator),
+                EC.visibility_of_element_located(mensaje_locator)
+            )
+        )
+
+        if resultado_ing.get_attribute("id") == "lblMensaje":
+            mensaje = resultado_ing.text.strip()
+            raise Exception(mensaje)
+
         codigo = codigo_compania(url_api_cod_cot,API_KEY)
 
-        token_input = wait.until(EC.presence_of_element_located((By.ID, "TOKEN")))
+        token_input = resultado_ing
+
         token_input.clear()
         token_input.send_keys(codigo)
         logging.info(f"⌨️ Digitando {codigo} correctamente en 'TOKEN'")
@@ -506,8 +518,58 @@ def main():
 
         time.sleep(3)
 
+        # #---- COMPLETAR DATOS NUEVOS DEL CLIENTE -------
+        # if ctx.cliente.cliente_nuevo:
+
+        #     logging.info("🆕 Llego aca")
+
+        #     # Esperar si aparece el formulario para persona nueva
+        #     wait.until(
+        #         EC.visibility_of_element_located((By.NAME, "nombre"))
+        #     )
+
+
+        #     # DATOS PERSONALES
+        #     escribir_input_en_modal(driver, wait, "nombre", ctx.cliente.nombres, True)
+        #     escribir_input_en_modal(driver, wait, "apepaterno", ctx.cliente.apellido_paterno, True)
+        #     escribir_input_en_modal(driver, wait, "apematerno", ctx.cliente.apellido_materno, True)
+        #     escribir_input_en_modal(driver, wait, "fecnacimiento", ctx.cliente.fecha_nac, True)
+
+        #     # GÉNERO
+        #     if ctx.cliente.sexo.upper() == "M":
+        #         driver.find_element(
+        #             By.XPATH,
+        #             "//input[@name='idpgenero' and @value='M']"
+        #         ).click()
+        #     else:
+        #         driver.find_element(
+        #             By.XPATH,
+        #             "//input[@name='idpgenero' and @value='F']"
+        #         ).click()
+
+        #     # DISTRITO
+        #     seleccionar_combo_por_flecha(driver,wait,"idedistrito","Los Olivos")
+
+        #     # TIPO DE VÍA
+        #     seleccionar_combo_por_flecha(driver,wait,"idptipovia",ctx.cliente.tipo_via)
+
+        #     # DIRECCIÓN
+        #     escribir_input_en_modal(driver, wait, "nomvia", ctx.cliente.nom_via, True)
+        #     escribir_input_en_modal(driver, wait, "numcasa", ctx.cliente.num_via, True)
+
+        #     # CELULAR
+        #     escribir_input_en_modal(driver, wait, "celular", ctx.cliente.celular, True)
+
+        #     # CORREO
+        #     escribir_input_en_modal(driver, wait, "email", ctx.cliente.correo, True)
+
+        #     # GRABAR
+        #     click_boton_grabar_en_modal_extjs(driver)
+
+        # input("Esperar")
+
         #-------- POR AHORA ---------
-        click_boton_grabar_en_modal_extjs(driver)
+        click_boton_grabar_en_modal_extjs(driver,wait)
         #---------------------
      
         time.sleep(5)

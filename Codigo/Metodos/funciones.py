@@ -1,8 +1,8 @@
 ﻿# -*- coding: utf-8 -*-
 # -- Froms ---
-from xml.etree.ElementTree import C14NWriterTarget
+#from xml.etree.ElementTree import C14NWriterTarget
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
+#from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -287,7 +287,8 @@ def click_agregar_cliente_extjs(driver):
 def obtener_titulo_modal_extjs(driver, wait, timeout=10):
 
     try:
-        modal = WebDriverWait(driver, timeout).until(
+        #modal = WebDriverWait(driver, timeout).until(
+        modal = wait.until(
             EC.visibility_of_element_located(
                 (By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")
             )
@@ -374,10 +375,11 @@ def escribir_input_en_modal(driver, wait, name, valor, presionar_enter):
 
     logging.info(f"✍️ Input '{name}' escrito DENTRO del modal")
 
-def click_boton_grabar_en_modal_extjs(driver):
+def click_boton_grabar_en_modal_extjs(driver,wait):
 
     # Esperar a que ExtJS esté listo
-    WebDriverWait(driver, 15).until(
+    #WebDriverWait(driver, 15).until(
+    wait.until(
         lambda d: d.execute_script("return typeof Ext !== 'undefined'")
     )
 
@@ -491,8 +493,6 @@ def registrar_cliente_nuevo(driver,wait,ctx):
 
     time.sleep(5)
 
-    input("Esperar")
-
     # 🔧 FUNCIONES BASE EXTJS
 
     def esperar_extjs_ready(driver, timeout=20):
@@ -504,7 +504,7 @@ def registrar_cliente_nuevo(driver,wait,ctx):
         )
 
     def select_extjs_combo(driver, input_css, value):
-        wait = WebDriverWait(driver, 10)
+        #wait = WebDriverWait(driver, 10)
 
         # 1. ubicar input visible
         input_box = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, input_css)))
@@ -616,8 +616,6 @@ def registrar_cliente_nuevo(driver,wait,ctx):
 
     # 5. Esperar nuevamente
     esperar_extjs_ready(driver)
-
-    input("Esperar")
 
     time.sleep(3)
     # 🧾 APELLIDOS (estos sí funcionan normal)
@@ -753,7 +751,8 @@ def click_boton_extjs(driver, wait, texto_boton, timeout=30):
     logging.info("✅ Sin máscara ExtJS")
 
     # 2️⃣ esperar que Ext esté completamente listo 🔥
-    WebDriverWait(driver, timeout).until(
+    #WebDriverWait(driver, timeout).until(
+    wait.until(
         lambda d: d.execute_script("""
             return (
                 typeof window.Ext !== 'undefined' &&
@@ -768,7 +767,8 @@ def click_boton_extjs(driver, wait, texto_boton, timeout=30):
     logging.info("✅ ExtJS completamente cargado")
 
     # 3️⃣ esperar botón visible REAL
-    WebDriverWait(driver, timeout).until(
+    #WebDriverWait(driver, timeout).until(
+    wait.until(
         lambda d: d.execute_script(f"""
             try {{
                 var botones = Ext.ComponentQuery.query('button') || [];

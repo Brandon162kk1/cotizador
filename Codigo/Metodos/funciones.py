@@ -40,7 +40,7 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
     # 6. Intento normal: ↓ + ENTER
     input_visible.send_keys(Keys.ARROW_DOWN)
-    time.sleep(0.2)
+    time.sleep(1)
     input_visible.send_keys(Keys.ENTER)
     #logging.info("↵ Enter enviado")
 
@@ -50,7 +50,8 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
         #logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER")
         return
     except:
-        logging.info("⚠️ ENTER no confirmó, usando PLAN B (clic directo)")
+        logging.info("❌ ENTER no confirmó, usando PLAN B (clic directo)")
+        raise Exception("Problemas técnicos, comunícate con el área de sistemas")
 
     # 🧨 PLAN B — click directo en la opción
     opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']")))
@@ -101,10 +102,13 @@ def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
     # 🔥 7. Esperar procesamiento
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
+    #valor_anterior = hidden.get_attribute("value")
+
     # 🔥 8. Validar que el hidden cambió
     wait.until(lambda d: hidden.get_attribute("value") != "")
+    ##ait.until(lambda d: hidden.get_attribute("value") != valor_anterior)
 
-    #logging.info(f"🎯 Combo '{name_hidden}' confirmado")
+    logging.info(f"🎯 Combo '{name_hidden}' confirmado")
 
 def click_fuera(driver):
 
@@ -185,18 +189,14 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     # 🔁 10️⃣ FALLBACK: seleccionar desde la lista si no confirmó
     if not hidden.get_attribute("value"):
-        #logging.info("⚠️ Enter no confirmó, intentando selección directa")
-        raise Exception("Enter no confirmó, intentando selección directa")
-
-        opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(), '{texto.split('|')[0]}')]")))
-        opcion.click()
-        logging.info("🖱️ Clic directo en opción")
+        logging.info("❌ Enter no confirmó, intentando selección directa")
+        raise Exception("Problemas técnicos, comunícate con el área de sistemas")
 
     # 11️⃣ validación final
     if not hidden.get_attribute("value"):
         raise Exception(f"❌ Combo '{name_hidden}' no se confirmó")
 
-    #logging.info(f"✅ Combo '{name_hidden}' confirmado")
+    logging.info(f"✅ Combo '{name_hidden}' confirmado")
 
 def ingresar_fecha_extjs(driver, wait, name, fecha_ddmmyyyy,texto):
 
@@ -305,26 +305,291 @@ def obtener_titulo_modal_extjs(driver, wait, timeout=10):
         logging.info("ℹ️ No hay modal visible")
         return None
 
-def seleccionar_combo_extjs(driver, wait, name_hidden):
+def seleccionar_combo_extjs(wait, texto):
 
-    wait.until(EC.invisibility_of_element_located(
-        (By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")
-    ))
-
-    hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
-
-    contenedor = hidden.find_element(
-        By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]"
+    opciones = wait.until(
+        EC.presence_of_all_elements_located(
+            (By.CSS_SELECTOR, ".x-combo-list-item")
+        )
     )
 
-    # 🔥 click EN LUPA (NO en el trigger normal)
-    trigger_search = contenedor.find_element(
-        By.XPATH, ".//img[contains(@class,'x-form-search-trigger')]"
+    for opcion in opciones:
+        if opcion.is_displayed() and opcion.text.strip().upper() == texto.strip().upper():
+            opcion.click()
+            logging.info(f"🖱️ Clic en '{texto}'")
+            return
+
+    raise Exception(f"No se encontró la opción '{texto}' en el combo")
+
+def esperar_ventana_extjs(wait, titulo):
+
+    xpath = f"""
+    //div[contains(@class,'x-window') and not(contains(@style,'display: none'))]
+        [.//span[contains(@class,'x-window-header-text')
+        and normalize-space()='{titulo}']]
+    """
+
+    ventana = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+
+    logging.info(f"✅ Ventana '{titulo}' encontrada")
+    return ventana
+
+def click_boton_ventana(driver, wait, titulo_ventana, texto_boton,ctx):
+
+    ventana = esperar_ventana_extjs(wait, titulo_ventana)
+
+    if ventana:
+
+        boton1 = ventana.find_element(By.XPATH,f".//button[normalize-space()='{texto_boton}']")
+        wait.until(lambda d: boton1.is_enabled())
+        driver.execute_script("arguments[0].click();", boton1)
+        logging.info(f"🖱️ Clic en '{texto_boton}'")
+        time.sleep(10)
+        #----------------------------------------------
+        click_boton_grabar_en_modal_extjs(driver,wait)
+        time.sleep(10)
+        #----------------------------------------------
+
+        # def responder_mensaje(driver, wait, nomboton):
+
+        #     # Esperar el MessageBox visible
+        #     ventana = wait.until(
+        #         EC.visibility_of_element_located((
+        #             By.XPATH,
+        #             "//div[contains(@class,'x-window-dlg') and not(contains(@style,'display: none'))]"
+        #         ))
+        #     )
+
+        #     # Obtener el texto del mensaje
+        #     mensaje = ventana.find_element(By.CSS_SELECTOR,".ext-mb-text").text.strip()
+
+        #     #Al parecer existen casos de homonimia con el nombre y los apellidos que ha ingresado. ?Desea visualizarlos?
+        #     if mensaje != "La transacción fue procesada Satisfactoriamente.":
+        #         raise Exception(mensaje)
+
+        #     logging.info(f"⚠️ Mensaje : {mensaje}")
+
+        #     # Buscar el botón dentro de ESA ventana
+        #     btn = ventana.find_element(By.XPATH,f".//button[normalize-space()='{nomboton}']")
+
+        #     # Esperar a que esté habilitado
+        #     wait.until(lambda d: btn.is_enabled())
+
+        #     # Scroll por si acaso
+        #     driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+
+        #     # Intentar click normal
+        #     try:
+        #         btn.click()
+        #     except:
+        #         driver.execute_script("arguments[0].click();", btn)
+
+        #     logging.info(f"🖱️ Clic en '{nomboton}")
+
+        responder_mensaje(driver, wait, "Aceptar")
+                        
+        try:
+            # Esperar que desaparezca el MessageBox
+            wait.until(
+                EC.invisibility_of_element_located((
+                    By.XPATH,
+                    "//div[contains(@class,'x-window-dlg') and .//span[contains(@class,'ext-mb-text')]]"
+                ))
+            )
+
+            logging.info("✅ MessageBox cerrado")
+        except:
+            time.sleep(10)
+            logging.info("✅ Se espero 10 segundos")
+        #----------------------------------------------
+        try:
+            # Esperar que exista la ventana Persona Natural
+            ventana = wait.until(
+                lambda d: next(
+                    (
+                        v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                        if v.is_displayed()
+                        and v.find_element(
+                            By.CSS_SELECTOR,
+                            ".x-window-header-text"
+                        ).text.strip() != "Nuevo Asegurado"
+                    ),
+                    None
+                )
+            )
+
+        except:
+
+            titulo_esperado = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}".upper()
+
+            ventana = wait.until(
+                lambda d: next(
+                    (
+                        v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                        if v.is_displayed()
+                        and titulo_esperado in v.find_element(
+                            By.CSS_SELECTOR,
+                            ".x-window-header-text"
+                        ).text.upper()
+                    ),
+                    None
+                )
+            )
+
+        titulo = ventana.find_element(By.CSS_SELECTOR,".x-window-header-text").text
+
+        logging.info(f"✅ Ventana encontrada: {titulo}")
+
+        # Buscar el botón Salir SOLO dentro de esa ventana
+        boton = ventana.find_element(By.CSS_SELECTOR,"button.tb-exit")
+
+        wait.until(lambda d: boton.is_displayed() and boton.is_enabled())
+
+        driver.execute_script("arguments[0].click();", boton)
+
+        logging.info("🖱️ Clic en Salir")             
+                        
+    else:
+        raise Exception(f"No se encontró la ventana '{titulo_ventana}'")
+
+def click_boton_toolbar_extjs(driver, wait, clase_boton):
+
+    wait.until(
+        lambda d: d.execute_script("return typeof Ext !== 'undefined'")
     )
 
-    driver.execute_script("arguments[0].click();", trigger_search)
+    driver.execute_script("""
+    var boton = document.querySelector("button." + arguments[0]);
 
-    logging.info("🔍 Abriendo buscador del combo")
+    if(!boton)
+        throw "No se encontró el botón: " + arguments[0];
+
+    var cmp = Ext.getCmp(boton.id);
+
+    if(cmp){
+        cmp.fireEvent('click', cmp);
+    }else{
+        boton.click();
+    }
+    """, clase_boton)
+
+    logging.info(f"🖱️ Clic en botón '{clase_boton}' -1")
+
+def set_valor_campo_extjs(driver, wait, nombre_campo, valor):
+
+    wait.until(
+        EC.element_to_be_clickable((By.NAME, nombre_campo))
+    )
+
+    driver.execute_script("""
+    var win = Ext.WindowMgr.getActive();
+
+    if (!win)
+        throw "No existe un modal activo";
+
+    var campo = win.find("name", arguments[0])[0];
+
+    if (!campo)
+        throw "No se encontró el campo: " + arguments[0];
+
+    campo.setValue(arguments[1]);
+    campo.fireEvent('change', campo, arguments[1]);
+    """, nombre_campo, valor)
+
+    logging.info(f"✅ '{valor}' ingresado en el campo '{nombre_campo}'")
+
+def abrir_combo_en_fieldset(driver, titulo_fieldset, hidden_name, indice=0):
+
+    driver.execute_script("""
+    var titulo = arguments[0];
+    var hiddenName = arguments[1];
+    var indice = arguments[2];
+
+    var fs = null;
+
+    document.querySelectorAll("fieldset.x-fieldset").forEach(function(f){
+
+        var legend = f.querySelector(".x-fieldset-header-text");
+
+        if(legend && legend.innerText.trim() === titulo){
+            fs = f;
+        }
+    });
+
+    if(!fs)
+        throw "No existe el fieldset";
+
+    var hidden = fs.querySelector("input[name='" + hiddenName + "']");
+
+    if(!hidden)
+        throw "No existe el campo";
+
+    var triggers = hidden.parentElement.querySelectorAll(".x-form-trigger");
+
+    if(triggers.length == 0)
+        throw "No existen triggers para " + hiddenName;
+
+    if(indice >= triggers.length)
+        throw "Trigger inexistente";
+
+    triggers[indice].click();
+
+    """, titulo_fieldset, hidden_name, indice)
+
+    logging.info(f"✅ Combo '{hidden_name}' abierto")
+
+def aceptar_messagebox_extjs(driver, wait):
+
+    # Esperar a que aparezca el MessageBox
+    wait.until(
+        EC.visibility_of_element_located(
+            (By.CSS_SELECTOR, "div.x-window-dlg")
+        )
+    )
+
+    # Obtener el texto
+    mensaje = driver.find_element(
+        By.CSS_SELECTOR,
+        "div.x-window-dlg .ext-mb-text"
+    ).text.strip()
+
+    return mensaje
+
+def responder_mensaje(driver, wait, nomboton):
+
+    # Esperar el MessageBox visible
+    ventana = wait.until(
+        EC.visibility_of_element_located((
+            By.XPATH,
+            "//div[contains(@class,'x-window-dlg') and not(contains(@style,'display: none'))]"
+        ))
+    )
+
+    # Obtener el texto del mensaje
+    mensaje = ventana.find_element(By.CSS_SELECTOR,".ext-mb-text").text.strip()
+
+    #Al parecer existen casos de homonimia con el nombre y los apellidos que ha ingresado. ?Desea visualizarlos?
+    if mensaje != "La transacción fue procesada Satisfactoriamente.":
+        raise Exception(mensaje)
+
+    logging.info(f"⚠️ Mensaje : {mensaje}")
+
+    # Buscar el botón dentro de ESA ventana
+    btn = ventana.find_element(By.XPATH,f".//button[normalize-space()='{nomboton}']")
+
+    # Esperar a que esté habilitado
+    wait.until(lambda d: btn.is_enabled())
+
+    # Scroll por si acaso
+    driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+
+    # Intentar click normal
+    try:
+        btn.click()
+    except:
+        driver.execute_script("arguments[0].click();", btn)
+
+    logging.info(f"🖱️ Clic en '{nomboton}")
 
 def click_boton_buscar_en_modal_extjs(driver):
 
@@ -450,484 +715,5 @@ def click_tab_terceros_extjs(driver):
     li.dispatchEvent(evtDown);
     li.dispatchEvent(evtUp);
     li.dispatchEvent(evtclick);
-    """)       
-
-# -------------------------
-def registrar_cliente_nuevo(driver,wait,ctx):
-      
-    wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "x-window")))
-    logging.info("Ventana visible")
-
-    # iframes = driver.find_elements(By.TAG_NAME, "iframe")
-    # logging.info(f"Cantidad iframes:  {len(iframes)}")
-
-    input_doc = wait.until(EC.presence_of_element_located((By.NAME, "numerodoc")))
-    logging.info("Input encontrado")
-
-    try:
-
-        driver.execute_script("""
-        arguments[0].focus();
-
-        // Simular ENTER real
-        var event = new KeyboardEvent('keydown', {
-            key: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true
-        });
-
-        arguments[0].dispatchEvent(event);
-        """, input_doc)
-        logging.info("enter")
-    except :
-        driver.execute_script("""
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true
-        }));
-        """)
-        logging.info("enter2")
-
-    time.sleep(5)
-
-    # 🔧 FUNCIONES BASE EXTJS
-
-    def esperar_extjs_ready(driver, timeout=20):
-        wait.until(
-            lambda d: (
-                len(d.find_elements(By.CLASS_NAME, "ext-el-mask")) == 0 and
-                d.execute_script("return document.readyState") == "complete"
-            )
-        )
-
-    def select_extjs_combo(driver, input_css, value):
-        #wait = WebDriverWait(driver, 10)
-
-        # 1. ubicar input visible
-        input_box = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, input_css)))
-
-        # 2. hacer scroll + click real
-        driver.execute_script("arguments[0].scrollIntoView(true);", input_box)
-        driver.execute_script("arguments[0].click();", input_box)
-
-        # 🔥 3. usar JS para escribir (NO send_keys directo)
-        driver.execute_script("""
-            arguments[0].value = arguments[1];
-            arguments[0].dispatchEvent(new Event('input', {bubbles:true}));
-        """, input_box, value)
-
-        # 4. esperar lista desplegable REAL
-        option = wait.until(EC.visibility_of_element_located((
-            By.XPATH, f"//div[contains(@class,'x-combo-list-item') and contains(., '{value}')]"
-        )))
-
-        # 5. click real
-        driver.execute_script("arguments[0].click();", option)
-            
-    def force_input(driver, element, value):
-        driver.execute_script("""
-            arguments[0].focus();
-            arguments[0].value = '';
-            arguments[0].value = arguments[1];
-            arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
-            arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
-            arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));
-        """, element, value)
-
-    def set_extjs_textfield(driver, name, value):
-        driver.execute_script("""
-            var inputs = document.getElementsByName('nombre');
-
-            for (var i = 0; i < inputs.length; i++) {
-                var el = inputs[i];
-    
-                if (el.offsetParent !== null) {  // 🔥 visible
-                    el.focus();
-                    el.value = arguments[0];
-
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                    el.dispatchEvent(new Event('blur', { bubbles: true }));
-        
-                    break;
-                }
-            }
-            """, "JUAN PEREZ")
-
-    def set_extjs_date(driver, name, value):
-        driver.execute_script("""
-        var input = document.querySelector("input[name='" + arguments[0] + "']");
-        if (input) {
-            input.removeAttribute('readonly');
-            input.value = arguments[1];
-
-            // eventos que ExtJS sí escucha
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            input.dispatchEvent(new Event('blur', { bubbles: true }));
-        } else {
-            console.log("No se encontró el campo fecha");
-        }
-        """, name, value)
-
-    def set_extjs_value(driver, query, value):
-        driver.execute_script(f"""
-            var field = Ext.ComponentQuery.query('{query}')[0];
-            if (field) {{
-                field.setValue('{value}');
-                field.fireEvent('change', field, '{value}');
-            }}
-        """)
-
-    wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "x-window")))
-
-    logging.info("-------------------------------------------------------")
-    logging.info("✅ Se esperó todos los labels que vamos a ingresar data")
-
-    # 1. Esperar que ExtJS esté listo
-    esperar_extjs_ready(driver)
-
-    # 2. Setear NOMBRE usando ExtJS
-    driver.execute_script("""
-    var field = Ext.ComponentQuery.query('textfield[name=nombre]')[0];
-    if (field) {
-        field.setValue('JUAN PEREZ');
-        field.fireEvent('change', field, 'JUAN PEREZ');
-    }
-    """)
-    logging.info("✅ Nombre seteado con ExtJS")
-
-    # 3. Esperar otra vez (ExtJS suele procesar internamente)
-    esperar_extjs_ready(driver)
-
-    # 4. Setear FECHA
-    driver.execute_script("""
-    var field = Ext.ComponentQuery.query('datefield[name=fecnacimiento]')[0];
-    if (field) {
-        field.setValue('01/01/1990');
-        field.fireEvent('select', field, field.getValue());
-        field.fireEvent('change', field, field.getValue());
-    }
-    """)
-    logging.info("✅ Fecha seteada con ExtJS")
-
-    # 5. Esperar nuevamente
-    esperar_extjs_ready(driver)
-
-    time.sleep(3)
-    # 🧾 APELLIDOS (estos sí funcionan normal)
-    try:
-        ape_paterno = wait.until(EC.presence_of_element_located((By.NAME, "apepaterno")))
-        ape_paterno.clear()
-        ape_paterno.send_keys(ctx.cliente.apellido_paterno)
-
-        ape_materno = wait.until(EC.presence_of_element_located((By.NAME, "apematerno")))
-        ape_materno.clear()
-        ape_materno.send_keys(ctx.cliente.apellido_materno)
-
-        logging.info("✅ Apellidos ingresados")
-    except Exception as e:
-        logging.error(f"❌ Error apellidos: {e}")
-
-    time.sleep(3)
-    # 🚻 SEXO
-    try:
-        if ctx.cliente.sexo.upper() == "M":
-            genero = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@name='idpgenero' and @value='M']")))
-        else:
-            genero = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@name='idpgenero' and @value='F']")))
-
-        genero.click()
-        logging.info(f"✅ Sexo: {ctx.cliente.sexo.upper()}")
-    except Exception as e:
-        logging.error(f"❌ Error sexo: {e}")
-
-    time.sleep(3)
-    # 📅 FECHA
-    try:
-        set_extjs_date(driver, "fecnacimiento", ctx.cliente.fecha_nac)
-        logging.info(f"✅ Fecha: {ctx.cliente.fecha_nac}")
-    except Exception as e:
-        logging.error(f"❌ Error fecha: {e}")
-
-    time.sleep(3)
-    # 🏙️ DISTRITO
-    try:
-        select_extjs_combo(
-            driver,
-            "input[name='idedistrito'] + input",
-            "LA MOLINA"
-        )
-        logging.info("✅ Distrito seleccionado")
-    except Exception as e:
-        logging.error(f"❌ Error distrito: {e}")
-
-    time.sleep(3)
-    # 🛣️ TIPO VIA
-    try:
-        select_extjs_combo(
-            driver,
-            "input[name='idptipovia'] + input",
-            "AV"
-        )
-        logging.info("✅ Tipo vía seleccionado")
-    except Exception as e:
-        logging.error(f"❌ Error tipo vía: {e}")
-
-    time.sleep(3)
-    # 🏠 NOMBRE VIA
-    try:
-        nom_via = wait.until(EC.presence_of_element_located((By.NAME, "nomvia")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", nom_via)
-        driver.execute_script("arguments[0].click();", nom_via)
-
-        force_input(driver, nom_via, "AREQUIPA")
-        logging.info("✅ Nombre vía")
-    except Exception as e:
-        logging.error(f"❌ Error nombre vía: {e}")
-
-    time.sleep(3)
-    # 🔢 NUMERO
-    try:
-        num_via = wait.until(EC.presence_of_element_located((By.NAME, "numcasa")))
-        num_via.clear()
-        num_via.send_keys("123")
-        logging.info("✅ Número vía")
-    except Exception as e:
-        logging.error(f"❌ Error número vía: {e}")
-
-def esperar_lista_extjs(wait):
-    # esperar layer visible
-    wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-layer.x-combo-list")))
-    logging.info("Espero1")
-
-    # esperar inner
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.x-combo-list-inner")))
-    logging.info("Espero2")
-
-    # esperar al menos un item
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.x-combo-list-item")))
-    logging.info("Espero3")
-
-def setear_combo_extjs_real(driver, wait, name_hidden, texto):
-
-    wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
-
-    hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
-
-    contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
-    input_visible = contenedor.find_element(By.XPATH, ".//input[@type='text']")
-
-    driver.execute_script("""
-    var input = arguments[0];
-    var valor = arguments[1];
-
-    var cmp = Ext.getCmp(input.id) || Ext.ComponentMgr.all.find(function(c){
-        return c.el && c.el.dom === input;
-    });
-
-    if (!cmp) {
-        throw "❌ Combo ExtJS no encontrado";
-    }
-
-    cmp.setValue(valor);
-    cmp.fireEvent('select', cmp, { data: valor });
-    cmp.blur();
-    """, input_visible, texto)
-
-    wait.until(lambda d: hidden.get_attribute("value"))
-
-    logging.info(f"✅ Combo ExtJS '{name_hidden}' seteado REALMENTE")
-
-def click_boton_extjs(driver, wait, texto_boton, timeout=30):
-
-    # 1️⃣ esperar que desaparezca máscara
-    wait.until(EC.invisibility_of_element_located((
-        By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg"
-    )))
-    logging.info("✅ Sin máscara ExtJS")
-
-    # 2️⃣ esperar que Ext esté completamente listo 🔥
-    #WebDriverWait(driver, timeout).until(
-    wait.until(
-        lambda d: d.execute_script("""
-            return (
-                typeof window.Ext !== 'undefined' &&
-                Ext.ComponentQuery &&
-                Ext.ComponentQuery.query &&
-                Ext.ComponentMgr &&
-                Ext.ComponentMgr.all &&
-                Ext.ComponentMgr.all.items.length > 0
-            );
-        """)
-    )
-    logging.info("✅ ExtJS completamente cargado")
-
-    # 3️⃣ esperar botón visible REAL
-    #WebDriverWait(driver, timeout).until(
-    wait.until(
-        lambda d: d.execute_script(f"""
-            try {{
-                var botones = Ext.ComponentQuery.query('button') || [];
-                return botones.some(b =>
-                    (b.text || '').trim() === '{texto_boton}' &&
-                    b.rendered &&
-                    b.isVisible()
-                );
-            }} catch(e) {{
-                return false;
-            }}
-        """)
-    )
-    logging.info(f"✅ Botón '{texto_boton}' disponible")
-
-    # 4️⃣ click real
-    driver.execute_script(f"""
-        var botones = Ext.ComponentQuery.query('button') || [];
-
-        var btn = botones.find(b =>
-            (b.text || '').trim() === '{texto_boton}' &&
-            b.rendered &&
-            b.isVisible()
-        );
-
-        if (!btn) {{
-            throw "❌ Botón {texto_boton} NO encontrado";
-        }}
-
-        btn.fireEvent('click', btn);
     """)
 
-    logging.info(f"🖱️ Clic REAL en '{texto_boton}'")
-
-def esperar_cierre_modal_extjs(driver, wait, timeout=30):
-    
-    wait.until(lambda d: d.execute_script("""
-        return Ext.WindowMgr.getActive() === null;
-    """))
-
-    logging.info("✅ Modal ExtJS cerrado correctamente")
-
-def cerrar_modal_extjs(driver, wait):
-
-    try:
-        # 1️⃣ esperar modal visible
-        modal = wait.until(
-            EC.visibility_of_element_located(
-                (By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")
-            )
-        )
-        logging.info("✅ Modal ExtJS visible")
-
-        # 2️⃣ buscar la X de cerrar (ExtJS nativo)
-        btn_close = modal.find_element(By.CSS_SELECTOR, "div.x-tool-close")
-
-        time.sleep(5)
-
-        # 3️⃣ click JS real
-        driver.execute_script("""
-            arguments[0].dispatchEvent(
-                new MouseEvent('mousedown', {bubbles:true})
-            );
-            arguments[0].dispatchEvent(
-                new MouseEvent('mouseup', {bubbles:true})
-            );
-            arguments[0].dispatchEvent(
-                new MouseEvent('click', {bubbles:true})
-            );
-        """, btn_close)
-
-        logging.info("🖱️ Clic en X de cierre (ExtJS)")
-
-        # # 4️⃣ esperar que el modal desaparezca
-        # wait.until(EC.staleness_of(modal))
-        # logging.info("✅ Modal cerrado correctamente")
-
-        return True
-
-    except TimeoutException:
-        logging.info("⚠️ No se detectó modal ExtJS")
-        return False
-
-# -------------------------
-
-def cambiar_tipo_persona(driver, wait, texto):
-
-    modal = wait.until(EC.visibility_of_element_located(
-        (By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")
-    ))
-
-    hidden = modal.find_element(By.NAME, "idptipotercero")
-
-    # 🔥 Mapear texto → valor real
-    valor = "J" if "JUR" in texto.upper() else "N"
-
-    # 🔥 Setear directo en ExtJS (SIN clicks)
-    driver.execute_script("""
-    var combo = null;
-
-    Ext.ComponentMgr.all.each(function(c){
-        if (c.name === 'idptipotercero') {
-            combo = c;
-        }
-    });
-
-    if (!combo) throw '❌ Combo no encontrado';
-
-    combo.setValue(arguments[0]);
-
-    // 🔥 eventos importantes
-    combo.fireEvent('select', combo);
-    combo.fireEvent('change', combo, arguments[0]);
-    """, valor)
-
-    # 🔥 Esperar cambio REAL
-    wait.until(lambda d: hidden.get_attribute("value") == valor)
-
-    logging.info(f"✅ Tipo persona cambiado a: {hidden.get_attribute('value')}")
-
-# def cambiar_tipo_persona(driver, wait, texto):
-
-#     # 🔥 1. Esperar modal visible
-#     modal = wait.until(EC.visibility_of_element_located(
-#         (By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")
-#     ))
-
-#     # 🔥 2. Ubicar el hidden correcto dentro del modal
-#     hidden = modal.find_element(By.NAME, "idptipotercero")
-
-#     contenedor = hidden.find_element(
-#         By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]"
-#     )
-
-#     # 🔥 3. Click en la flecha
-#     trigger = contenedor.find_element(
-#         By.XPATH, ".//img[contains(@class,'x-form-trigger') and not(contains(@class,'search'))]"
-#     )
-
-#     driver.execute_script("arguments[0].click();", trigger)
-
-#     # 🔥 4. Esperar dropdown visible REAL
-#     lista = wait.until(EC.visibility_of_element_located((
-#         By.XPATH, "//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
-#     )))
-
-#     # 🔥 5. Esperar opción
-#     opcion = wait.until(EC.presence_of_element_located((
-#         By.XPATH, f"//div[contains(@class,'x-combo-list-item') and contains(., '{texto}')]"
-#     )))
-
-#     # 🔥 6. Click estilo ExtJS (clave)
-#     driver.execute_script("""
-#         arguments[0].dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
-#         arguments[0].dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-#         arguments[0].click();
-#     """, opcion)
-
-#     # 🔥 7. Esperar que cambie el hidden
-#     wait.until(lambda d: hidden.get_attribute("value") != "N")
-
-#     logging.info(f"✅ Tipo persona cambiado a: {hidden.get_attribute('value')}")

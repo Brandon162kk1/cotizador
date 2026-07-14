@@ -4,6 +4,7 @@ from datetime import timedelta,datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
@@ -14,7 +15,8 @@ from Chrome.driver import tomar_capturar,abrirDriver
 from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renombrar_carpeta
 from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
-from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs
+from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs,seleccionar_combo_extjs,set_valor_campo_extjs,abrir_combo_en_fieldset
+from Metodos.funciones import responder_mensaje,aceptar_messagebox_extjs,click_boton_toolbar_extjs,click_boton_ventana
 # -- Imports --
 import logging
 import os
@@ -238,11 +240,27 @@ def main():
         for intento in range(1, max_intentos + 1):
 
             try:
+
+                # Espera hasta que ocurra cualquiera de las dos cosas
+                wait.until(
+                    lambda d: (
+                        d.current_url.startswith(URL_SAS + "index.html")
+                        or (
+                            d.find_elements(*mensaje_locator)
+                            and d.find_element(*mensaje_locator).is_displayed()
+                            and d.find_element(*mensaje_locator).text.strip()
+                        )
+                    )
+                )
+
+                # Si apareció un mensaje, detener el proceso
+                mensajes = driver.find_elements(*mensaje_locator)
+                if mensajes and mensajes[0].is_displayed():
+                    mensaje = mensajes[0].text.strip()
+                    if mensaje:
+                        raise Exception(mensaje)
+
                 logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
-
-                logging.info(URL_SAS)
-                wait.until(EC.url_contains(URL_SAS+"index.html"))
-
                 span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
 
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});",span_transacciones)
@@ -254,7 +272,6 @@ def main():
                 break
 
             except TimeoutException:
-                #logging.warning(f"⚠️ No cargó correctamente la página o el botón no estuvo disponible. Refresh...")
                 driver.refresh()
                 time.sleep(3)
 
@@ -296,8 +313,11 @@ def main():
         driver.execute_script("arguments[0].click();", boton)
         logging.info("🖱️ Clic en 'Generar Datos Particulares'")
         #----------------------------
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-        logging.info("✅ Carga finalizada")   
+        try:
+            wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
+            logging.info("✅ Carga finalizada")
+        except TimeoutException:
+            raise Exception("Tiempo de espera excedido al generar datos particulares")
         #----------------------------
         escribir_input_por_name(driver, wait, "txtplaca_de_rodaje",ctx.vehiculo.num_rodaje,False)
         time.sleep(1)
@@ -347,8 +367,8 @@ def main():
         time.sleep(3)
         #----------------------------
         if ctx.vehiculo.uso == 'PARTICULAR':
-            #escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
-            escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",f"NATURAL",2)
+            escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
+            #escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",f"NATURAL",2)
             logging.info(f"🖱️ Opción seleccionada para Tipo de persona → '{ctx.cliente.tipo_persona}'")
             time.sleep(3)
             #----------------------------
@@ -359,7 +379,8 @@ def main():
             escribir_input_por_name(driver, wait, "txtvendedor",ctx.usuario.vendedor,False)
             time.sleep(1)
             #----------------------------
-            localizacion = 'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'
+            #localizacion = 'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'
+            localizacion = 'LIMA' if ctx.vehiculo.localizacion in ('LIMA','CALLAO') else 'PROVINCIAS'
             escribir_y_enter_combo_por_name(driver,wait,"sellocalización",localizacion,2)
             logging.info(f"🖱️ Opción seleccionada en localización → '{localizacion}'")
             time.sleep(3)
@@ -369,8 +390,11 @@ def main():
         driver.execute_script("arguments[0].click();", btn_cal)
         logging.info("🖱️ Clic en 'Calcular Planes'")
         #----------------------------
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-        #logging.info("✅ Carga finalizada")
+        try:
+            wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
+            logging.info("✅ Carga finalizada")
+        except TimeoutException:
+            raise Exception("Tiempo de espera excedido al Calcular Planes")
         #----------------------------
         modal_mensaje = (By.XPATH,"//div[contains(@class,'x-window-dlg')]//span[contains(text(),'No se encontraron planes configurados')]")
         fieldset_plan = (By.XPATH,"//fieldset[.//span[normalize-space()='Plan 1']]")
@@ -394,8 +418,6 @@ def main():
             raise Exception(texto)
         if "No se encontraron planes configurados" in texto:
             logging.warning("⚠️ Apareció modal")
-            # btn_aceptar = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Aceptar']")))
-            # btn_aceptar.click()
             raise Exception(texto)
         else:
             logging.info("✅ Plan localizado y visible")
@@ -408,31 +430,62 @@ def main():
         boton_seleccionar = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[normalize-space()='Seleccionar'] | .//a[normalize-space()='Seleccionar']")))
         driver.execute_script("arguments[0].click();", boton_seleccionar)
         logging.info("🖱️ Clic en Seleccionar")
+
+        descuento = False
+
+        if descuento :
+            #----------------------------
+            escribir_input_por_name(driver, wait, "recadctoppact","5",False)
+            time.sleep(1)
+            #----------------------------
+            tomar_capturar(driver,ruta_carpeta,f"antesDESCUENTO{ctx.id_cot}")
+            #----------------------------
+            btn_calcular = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Calcular']")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_calcular)
+            driver.execute_script("arguments[0].click();", btn_calcular)
+            logging.info("🖱️ Clic en 'Calcular'")
+            time.sleep(5)
+            #----------------------------
+            # Esperar que aparezca el mensaje
+            mensaje = wait.until(
+                EC.visibility_of_element_located((
+                    By.XPATH,
+                    "//span[contains(@class,'ext-mb-text') and contains(.,'La información se grabó exitosamente.')]"
+                ))
+            )
+            logging.info(f"✅ {mensaje.text}")
+            #----------------------------
+            # Esperar botón Aceptar
+            btn_aceptar = wait.until(
+                EC.element_to_be_clickable((
+                    By.XPATH,
+                    "//div[contains(@class,'x-window-dlg')]//button[normalize-space()='Aceptar']"
+                ))
+            )
+            btn_aceptar.click()
+            logging.info("🖱️ Clic en Aceptar")
+            #----------------------------
+            # esperar que NO exista el overlay
+            wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "ext-el-mask")))
+            logging.info("✅ Carga finalizada")
+            #----------------------------
+            tomar_capturar(driver,ruta_carpeta,f"despuesDESCUENTO{ctx.id_cot}")
+            input("Esperar")
+
+        time.sleep(5)
         #----------------------------
         tab_fraccionamiento = wait.until(EC.element_to_be_clickable((By.XPATH,"//span[contains(@class,'x-tab-strip-text') and normalize-space()='Fraccionamiento']")))
         tab_fraccionamiento.click()
         logging.info("🖱️ Clic en Fraccionamiento")
         #----------------------------
-        # esperar que NO exista el overlay
-        wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "ext-el-mask")))
-        logging.info("✅ Carga finalizada")   
-        #----------------------------
+        time.sleep(5)
         #ingresar_fecha_extjs(driver,wait,name="fecinicertificado",fecha_ddmmyyyy="16/03/2026",texto=f"Fecha de Inicio de Certificado")
         #click_fuera(driver)
-        #tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
-        tipo_cuenta = "Cuenta de Ahorros"
+        tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
         tiempo_12 = ctx.credito.tiempo == "12 MESES"
-        #es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
-        #es_juridica = ctx.cliente.tipo_persona.upper() == "NATURAL"
+        es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
 
-        # if es_juridica:
-        #     tipo_plan = "PLAN CC CNT PERSONA JURIDICA"
-        # else:
-        tipo_plan = (
-            "PLAN 2020 CC PN 0% USD 12 CUOTAS"
-            if tiempo_12
-            else "PLAN CC CNT PERSONA NATURAL"
-        )
+        tipo_plan = "PLAN CC CNT PERSONA JURIDICA" if es_juridica else ("PLAN 2020 CC PN 0% USD 12 CUOTAS" if tiempo_12 else "PLAN CC CNT PERSONA NATURAL")
 
         escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento",tipo_plan,2)
         logging.info(f"🖱️ Opción seleccionada para Tipo de Plan → '{tipo_plan}'")
@@ -483,95 +536,308 @@ def main():
             raise Exception("No apareció modal para registrar cliente")
 
         time.sleep(5)
-        #--------------------------
-        # from Metodos.funciones import cambiar_tipo_persona
-        # cambiar_tipo_persona(driver, wait, texto="PERSONA JURÍDICA")
-        #--------------------------
-        # try:
+        #------- MODAL NUEVO ASEGURADO PARA CAMBIAR TIPO DE PERSONA Y TIPO DE DOCUMENTO ----------------------
+        try:
 
-        #     #modal = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
-        #     from Metodos.funciones import cambiar_tipo_persona
-        #     #seleccionar_combo_extjs(driver, wait, "idptipotercero",f"PERSONA {ctx.cliente.tipo_persona.upper()}")
-        #     #seleccionar_combo_extjs(driver, wait, "idptipotercero")
-        #     #cambiar_tipo_persona(driver, wait,texto=f"PERSONA {ctx.cliente.tipo_persona.upper()}")
-        #     cambiar_tipo_persona(driver, wait, texto="PERSONA JURIDICA")
+            wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
 
-        #     input("Esperar")
-        #     # escribir_y_enter_combo_por_name(driver,wait,"idptipotercero",f"PERSONA {ctx.cliente.tipo_persona.upper()}",1)
-        #     # time.sleep(1)
-        #     # escribir_y_enter_combo_por_name(driver,wait,"idptipodocumento",f"PERSONA {ctx.cliente.tipo_doc.upper()}",1)
-        #     # time.sleep(1)
-        # except Exception as e:
-        #     raise Exception(f"Error seleccionando tipo de tercero o documento | Motivo: {e}")
-        # #--------------------------
+            def escribir_combo_extjs(wait, name_hidden, texto, valor_esperado=None):
+
+                combo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR,f"input[name='{name_hidden}'] + input")))
+                combo.click()
+                logging.info(f"🖱️ Clic en '{name_hidden}' ")
+
+                try:
+                    combo.send_keys(Keys.CONTROL, "a")
+                    logging.info(f"🖱️ Seleccionando todo el combo '{name_hidden}'")
+                except:
+                    pass
+
+                try:
+                    combo.clear()
+                    logging.info(f"✅ Eliminando contenido del combo '{name_hidden}'")
+                except:
+                    pass
+
+                combo.send_keys(texto)
+                time.sleep(2)
+                try:
+                    combo.send_keys(Keys.ENTER)
+                    logging.info("✅ El combo aceptó ENTER")
+                except:
+                    pass
+                finally:
+                    time.sleep(2)
+
+                # if valor_esperado is not None:
+                #     hidden = driver.find_element(By.NAME, name_hidden)
+
+                #     try:
+                #         wait.until(
+                #             lambda d: hidden.get_attribute("value") == valor_esperado
+                #         )
+                #     except TimeoutException:
+                #         combo.send_keys(Keys.TAB)
+
+                #         wait.until(
+                #             lambda d: hidden.get_attribute("value") == valor_esperado
+                #         )
+
+                # logging.info(f"✅ Combo '{name_hidden}' seleccionado: {texto}")
+
+            # valor_esperado_idptipotercero = "J" if es_juridica else "N"
+            escribir_combo_extjs(wait,"idptipotercero","PERSONA JURÍDICA" if es_juridica else "PERSONA NATURAL",valor_esperado="J" if es_juridica else "N")
+            time.sleep(2)
+
+            # dispatch_tipo_doc = {
+            #     "RUC": "1",
+            #     "DNI": "2",
+            #     "PASAPORTE": "3",
+            #     "C.E.": "4"
+            # }
+
+            # valor_esperado_idptipodocumento = dispatch_tipo_doc.get(ctx.cliente.tipo_doc.upper())
+
+            # if valor_esperado_idptipodocumento is None:
+            #     raise Exception(f"Tipo de documento '{ctx.cliente.tipo_doc}' no soportado en la compañía")
+
+            escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc)
+
+        except Exception as e:
+            raise Exception(f"Error seleccionando tipo de tercero o documento | Motivo: {e}")
+        #-----------------------------------------------------------------------------------------------------
 
         time.sleep(5)
-        #dni_cot_ej = os.getenv("dni_cot")
-        #ruc_cot_ej = os.getenv("ruc_cot")
-        #escribir_input_en_modal(driver,wait,"numerodoc",{ruc_cot_ej if ctx.cliente.tipo_doc.upper() == 'RUC' else dni_cot_ej},True)
-        #escribir_input_en_modal(driver,wait,"numerodoc",dni_cot_ej,True)
-        escribir_input_en_modal(driver,wait,"numerodoc",ctx.usuario.dni,True)
+
+        #--- Por Mientras ---
+        ruc_cot_ej = os.getenv("ruc_cot")
+        escribir_input_en_modal(driver,wait,"numerodoc",ruc_cot_ej if es_juridica else ctx.cliente.num_doc,True)
 
         time.sleep(3)
 
         click_boton_buscar_en_modal_extjs(driver)
 
         time.sleep(3)
+        
+        campo_nombre = wait.until(EC.presence_of_element_located((By.NAME, "nombre")))
 
-        # #---- COMPLETAR DATOS NUEVOS DEL CLIENTE -------
-        # if ctx.cliente.cliente_nuevo:
+        es_readonly = campo_nombre.get_attribute("readonly") is not None
 
-        #     logging.info("🆕 Llego aca")
+        if es_readonly:
+            logging.info("✅ El formulario quedó bloqueado (readonly), No se completan más datos.")
+        else:
+            logging.info("⚠️ El formulario sigue editable. Se completan los demás datos.")
 
-        #     # Esperar si aparece el formulario para persona nueva
-        #     wait.until(
-        #         EC.visibility_of_element_located((By.NAME, "nombre"))
-        #     )
+            #------- MODAL PARA COMPLETAR DATOS NUEVOS DEL CLIENTE -------
+            if ctx.cliente.cliente_nuevo:
+                logging.warning("⚠️ El asesor marco que es cliente nuevo, pero ya existe en la BD de la compañía")
 
+            set_valor_campo_extjs(driver, wait, "nombre", ctx.cliente.nombres)
+            time.sleep(1)
+            #----------------------------------------------------------------
+            set_valor_campo_extjs(driver, wait, "apepaterno", ctx.cliente.apellido_paterno)
+            time.sleep(1)
+            #----------------------------------------------------------------
+            set_valor_campo_extjs(driver, wait, "apematerno", ctx.cliente.apellido_materno)
+            time.sleep(1)
+            #----------------------------------------------------------------
+            # ACA FALTA ESTADO CIVIL
+            #----------------------------------------------------------------
+            driver.execute_script("""
+                var radio = document.querySelector(
+                    "input[name='idpgenero'][value='" + arguments[0] + "']"
+                );
 
-        #     # DATOS PERSONALES
-        #     escribir_input_en_modal(driver, wait, "nombre", ctx.cliente.nombres, True)
-        #     escribir_input_en_modal(driver, wait, "apepaterno", ctx.cliente.apellido_paterno, True)
-        #     escribir_input_en_modal(driver, wait, "apematerno", ctx.cliente.apellido_materno, True)
-        #     escribir_input_en_modal(driver, wait, "fecnacimiento", ctx.cliente.fecha_nac, True)
+                radio.checked = true;
 
-        #     # GÉNERO
-        #     if ctx.cliente.sexo.upper() == "M":
-        #         driver.find_element(
-        #             By.XPATH,
-        #             "//input[@name='idpgenero' and @value='M']"
-        #         ).click()
-        #     else:
-        #         driver.find_element(
-        #             By.XPATH,
-        #             "//input[@name='idpgenero' and @value='F']"
-        #         ).click()
+                radio.dispatchEvent(new Event('click', {bubbles:true}));
+                radio.dispatchEvent(new Event('change', {bubbles:true}));
+                """, ctx.cliente.sexo)
+            logging.info(f"✅ Radio 'Sexo' = '{ctx.cliente.sexo}'")
+            time.sleep(2)
+            #----------------------------------------------------------------
+            driver.execute_script("""
+            var win = Ext.WindowMgr.getActive();
 
-        #     # DISTRITO
-        #     seleccionar_combo_por_flecha(driver,wait,"idedistrito","Los Olivos")
+            var campo = win.find("name", "fecnacimiento")[0];
 
-        #     # TIPO DE VÍA
-        #     seleccionar_combo_por_flecha(driver,wait,"idptipovia",ctx.cliente.tipo_via)
+            campo.setValue(arguments[0]);
+            campo.fireEvent('change', campo, arguments[0]);
+            """, ctx.cliente.fecha_nac)
+            logging.info(f"✅ Fecha Nacimiento = '{ctx.cliente.fecha_nac}'")
+            time.sleep(1)
+            #----------------------------------------------------------------
+            abrir_combo_en_fieldset(driver, "Direcciones", "idedistrito")
+            time.sleep(1)
+            #----------------------------------------------------------------
+            seleccionar_combo_extjs(wait, ctx.vehiculo.distrito_veh)
+            time.sleep(1)
+            #----------------------------------------------------------------
+            abrir_combo_en_fieldset(driver, "Direcciones", "idptipovia")
+            time.sleep(1)
+            #----------------------------------------------------------------
+            seleccionar_combo_extjs(wait, ctx.cliente.tipo_via)
+            time.sleep(1)
+            #----------------------------------------------------------------
+            driver.execute_script("""
+                var campo = document.querySelector("input[name='nomvia']");
 
-        #     # DIRECCIÓN
-        #     escribir_input_en_modal(driver, wait, "nomvia", ctx.cliente.nom_via, True)
-        #     escribir_input_en_modal(driver, wait, "numcasa", ctx.cliente.num_via, True)
+                if(!campo)
+                    throw "No existe nomvia";
 
-        #     # CELULAR
-        #     escribir_input_en_modal(driver, wait, "celular", ctx.cliente.celular, True)
+                campo.value = arguments[0];
 
-        #     # CORREO
-        #     escribir_input_en_modal(driver, wait, "email", ctx.cliente.correo, True)
+                campo.dispatchEvent(new Event('input', {bubbles:true}));
+                campo.dispatchEvent(new Event('change', {bubbles:true}));
+                """, ctx.cliente.nom_via)
+            logging.info(f"⌨️ Digitando Nombre de Via : {ctx.cliente.nom_via}")
+            time.sleep(1)
+            #----------------------------------------------------------------
+            driver.execute_script("""
+                var campo = document.querySelector("input[name='numcasa']");
 
-        #     # GRABAR
-        #     click_boton_grabar_en_modal_extjs(driver)
+                if(!campo)
+                    throw "No existe numcasa";
 
-        # input("Esperar")
+                campo.value = arguments[0];
 
-        #-------- POR AHORA ---------
+                campo.dispatchEvent(new Event('input', {bubbles:true}));
+                campo.dispatchEvent(new Event('change', {bubbles:true}));
+                """, ctx.cliente.num_via)
+            logging.info(f"⌨️ Digitando Numero de Via : {ctx.cliente.num_via}")
+            time.sleep(1)
+            #----------------------------------------------------------------
+            set_valor_campo_extjs(driver, wait, "numtelefcasa", ctx.cliente.celular) #numtelefmovil
+            time.sleep(1)
+            #----------------------------------------------------------------
+            set_valor_campo_extjs(driver, wait, "emailpersonal", ctx.cliente.correo) #emailtrabajo
+            #----------------------------------------------------------------
+            click_boton_grabar_en_modal_extjs(driver,wait)
+
+            mensaje = aceptar_messagebox_extjs(driver, wait)
+
+            if "Satisfactoriamente" in mensaje:
+                logging.info("✅ Operación exitosa")
+
+                #--- PROBANDO SI ES UN CLIENTE NUEVO Y LOS DATOS SON CORRECTOS---
+                try:
+                    # Clic en Aceptar mediante ExtJS
+                    driver.execute_script("""
+                        var win = Ext.WindowMgr.getActive();
+
+                        if(!win)
+                            throw "No existe MessageBox";
+
+                        var btn = null;
+
+                        win.buttons.each(function(b){
+                            if(b.text === "Aceptar"){
+                                btn = b;
+                            }
+                        });
+
+                        if(!btn)
+                            throw "No existe botón Aceptar";
+
+                        btn.fireEvent('click', btn);
+                    """)
+
+                    logging.info("🖱️ Botón Aceptar presionado -1")       
+                    time.sleep(3)
+                    click_boton_toolbar_extjs(driver, wait, "tb-exit")
+
+                    logging.info("Funciono el primero OJO")
+                except:
+
+                    responder_mensaje(driver, wait, "Aceptar")
+
+                    try:
+                        # Esperar que desaparezca el MessageBox
+                        wait.until(
+                            EC.invisibility_of_element_located((
+                                By.XPATH,
+                                "//div[contains(@class,'x-window-dlg') and .//span[contains(@class,'ext-mb-text')]]"
+                            ))
+                        )
+
+                        logging.info("✅ MessageBox cerrado")
+                    except:
+                        time.sleep(10)
+                        logging.info("✅ Se espero 10 segundos")
+                    #----------------------------------------------
+                    try:
+                        # Esperar que exista la ventana Persona Natural
+                        ventana = wait.until(
+                            lambda d: next(
+                                (
+                                    v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                                    if v.is_displayed()
+                                    and v.find_element(
+                                        By.CSS_SELECTOR,
+                                        ".x-window-header-text"
+                                    ).text.strip() != "Nuevo Asegurado"
+                                ),
+                                None
+                            )
+                        )
+
+                    except:
+
+                        titulo_esperado = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}".upper()
+
+                        ventana = wait.until(
+                            lambda d: next(
+                                (
+                                    v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                                    if v.is_displayed()
+                                    and titulo_esperado in v.find_element(
+                                        By.CSS_SELECTOR,
+                                        ".x-window-header-text"
+                                    ).text.upper()
+                                ),
+                                None
+                            )
+                        )
+
+                    titulo = ventana.find_element(By.CSS_SELECTOR,".x-window-header-text").text
+
+                    logging.info(f"✅ Ventana encontrada: {titulo}")
+
+                    # Buscar el botón Salir SOLO dentro de esa ventana
+                    boton = ventana.find_element(By.CSS_SELECTOR,"button.tb-exit")
+
+                    wait.until(lambda d: boton.is_displayed() and boton.is_enabled())
+
+                    driver.execute_script("arguments[0].click();", boton)
+
+                    logging.info("🖱️ Clic en Salir")
+
+                    logging.info("Funciono el segundo OJO")
+
+            elif "input" in mensaje:
+                raise Exception(f"{mensaje}")
+            else:
+      
+                logging.warning(f"⚠️ Mensaje : {mensaje}")
+
+                #if "datos fueron observados" not in mensaje:
+
+                time.sleep(5)
+
+                aviso = wait.until(EC.visibility_of_element_located((By.XPATH,"//div[contains(@class,'x-window')][.//span[text()='Aviso']]")))
+
+                boton = aviso.find_element(By.XPATH,".//button[normalize-space()='Sí']")
+                boton.click()
+                logging.info(f"🖱️ Clic en 'Sí'")
+
+                time.sleep(5)
+
+                click_boton_ventana(driver,wait,"Validación de tercero","Cargar datos",ctx)
+            
+            #-------------------------------------------------------------
+
+        time.sleep(10)
         click_boton_grabar_en_modal_extjs(driver,wait)
-        #---------------------
-     
         time.sleep(5)
 
         btn_gen_coti = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Cotización']")))
@@ -585,72 +851,76 @@ def main():
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_si)
         driver.execute_script("arguments[0].click();", btn_si)
         logging.info("🖱️ Clic en 'Sí'")
-
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-        logging.info("✅ Carga finalizada") 
-        #-------- ELIMINAR DATOS DEL DNI PARA QUE SALGA SIN DATOS EN LA COTIZACION -----------
-
-        time.sleep(10)
-    
+        #-------------------------------------------------------------------------------------
         try:
-            click_tab_terceros_extjs(driver)
-            logging.info("🖱️ Clic en Tab 'Terceros'")
-        except Exception as e:
-            raise Exception(f"No se encontró la pestaña Terceros | Motivo: {e}")
-
+            wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
+            logging.info("✅ Carga finalizada")
+        except TimeoutException: 
+            raise Exception("Tiempo de espera excedido al Generar Cotización")
+        #-------------------------------------------------------------------------------------
         time.sleep(10)
+        
+        # Logica para eliminar los datos de un cliente si en caso no tenemos sus datos completos y queremos que la cotizacion salga sin datos del cliente
+        sin_datos_cliente = es_juridica
+        if sin_datos_cliente:
+            try:
+                click_tab_terceros_extjs(driver)
+                logging.info("🖱️ Clic en Tab 'Terceros'")
+            except Exception as e:
+                raise Exception(f"No se encontró la pestaña Terceros | Motivo: {e}")
 
-        try:
+            time.sleep(10)
 
-            # filas_visibles = [
-            #     f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-            #     if f.is_displayed()
-            # ]
+            try:
 
-            # logging.info(f"Filas visibles: {len(filas_visibles)}")
+                # filas_visibles = [
+                #     f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
+                #     if f.is_displayed()
+                # ]
 
-            time.sleep(5)
+                # logging.info(f"Filas visibles: {len(filas_visibles)}")
 
-            while True:
+                time.sleep(5)
 
-                filas = [
-                    f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-                    if f.is_displayed()
-                ]
+                while True:
 
-                total = len(filas)
-                logging.info(f"📊 Filas visibles actuales: {total}")
+                    filas = [
+                        f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
+                        if f.is_displayed()
+                    ]
 
-                if total == 1:
-                    logging.info("✅ Ultima fila no se elimina")
-                    break
+                    total = len(filas)
+                    logging.info(f"📊 Filas visibles actuales: {total}")
 
-                fila = filas[0]
+                    if total == 1:
+                        logging.info("✅ Ultima fila no se elimina")
+                        break
 
-                driver.execute_script("""arguments[0].scrollIntoView({block:'center'});""", fila)
-                fila.click()
-                logging.info("🖱️ Clic en la fila")
+                    fila = filas[0]
 
-                time.sleep(3)
+                    driver.execute_script("""arguments[0].scrollIntoView({block:'center'});""", fila)
+                    fila.click()
+                    logging.info("🖱️ Clic en la fila")
 
-                btn_excluir = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.tb-user-del")))
-                btn_excluir.click()
-                logging.info("🖱️ Clic en Excluir")
-                time.sleep(3)
+                    time.sleep(3)
 
-                btn_si = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sí']")))
-                btn_si.click()
-                logging.info("🖱️ Clic en 'Sí'")
+                    btn_excluir = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.tb-user-del")))
+                    btn_excluir.click()
+                    logging.info("🖱️ Clic en Excluir")
+                    time.sleep(3)
 
-                # 🔥 ESPERAR A QUE CAMBIE LA TABLA (clave)
-                wait.until(lambda d: len([
-                    f for f in d.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-                    if f.is_displayed()
-                ]) < total)
+                    btn_si = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sí']")))
+                    btn_si.click()
+                    logging.info("🖱️ Clic en 'Sí'")
 
-        except Exception as e:
-            raise Exception(f"Error al eliminar filas | Motivo : {e}")
-            #logging.warning(f"No se pudo eliminar las filas | Motivo: {e}")
+                    # 🔥 ESPERAR A QUE CAMBIE LA TABLA (clave)
+                    wait.until(lambda d: len([
+                        f for f in d.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
+                        if f.is_displayed()
+                    ]) < total)
+
+            except Exception as e:
+                raise Exception(f"Error al eliminar filas | Motivo : {e}")
 
         # ⏳ esperar máscara ExtJS
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
@@ -678,7 +948,8 @@ def main():
     except Exception as e:
         logging.info(f"⚠️ Conclusión: {e}")
         tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-        enviarCorreoGeneral(ruta_carpeta,ctx)
+        if ctx.entorno.upper() == "PRODUCCION" :
+            enviarCorreoGeneral(ruta_carpeta,ctx)
         renombrar_carpeta(ruta_carpeta)
     finally:
 

@@ -452,29 +452,6 @@ def click_boton_ventana(driver, wait, titulo_ventana, texto_boton,ctx):
     else:
         raise Exception(f"No se encontró la ventana '{titulo_ventana}'")
 
-def click_boton_toolbar_extjs(driver, wait, clase_boton):
-
-    wait.until(
-        lambda d: d.execute_script("return typeof Ext !== 'undefined'")
-    )
-
-    driver.execute_script("""
-    var boton = document.querySelector("button." + arguments[0]);
-
-    if(!boton)
-        throw "No se encontró el botón: " + arguments[0];
-
-    var cmp = Ext.getCmp(boton.id);
-
-    if(cmp){
-        cmp.fireEvent('click', cmp);
-    }else{
-        boton.click();
-    }
-    """, clase_boton)
-
-    logging.info(f"🖱️ Clic en botón '{clase_boton}' -1")
-
 def set_valor_campo_extjs(driver, wait, nombre_campo, valor):
 
     wait.until(
@@ -638,7 +615,7 @@ def escribir_input_en_modal(driver, wait, name, valor, presionar_enter):
 
     input_el.send_keys(valor)
 
-    logging.info(f"✍️ Input '{name}' escrito DENTRO del modal")
+    logging.info(f"✍️ '{valor}' ingresado en el input '{name}' dentro del modal")
 
 def click_boton_grabar_en_modal_extjs(driver,wait):
 
@@ -717,3 +694,46 @@ def click_tab_terceros_extjs(driver):
     li.dispatchEvent(evtclick);
     """)
 
+def escribir_combo_extjs(wait, name_hidden, texto, valor_esperado=None):
+
+    combo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR,f"input[name='{name_hidden}'] + input")))
+    combo.click()
+    logging.info(f"🖱️ Clic en '{name_hidden}' ")
+
+    try:
+        combo.send_keys(Keys.CONTROL, "a")
+        logging.info(f"🖱️ Seleccionando todo el combo '{name_hidden}'")
+    except:
+        pass
+
+    try:
+        combo.clear()
+        logging.info(f"✅ Eliminando contenido del combo '{name_hidden}'")
+    except:
+        pass
+
+    combo.send_keys(texto)
+    time.sleep(2)
+    try:
+        combo.send_keys(Keys.ENTER)
+        logging.info("✅ El combo aceptó ENTER")
+    except:
+        pass
+    finally:
+        time.sleep(2)
+
+    # if valor_esperado is not None:
+    #     hidden = driver.find_element(By.NAME, name_hidden)
+
+    #     try:
+    #         wait.until(
+    #             lambda d: hidden.get_attribute("value") == valor_esperado
+    #         )
+    #     except TimeoutException:
+    #         combo.send_keys(Keys.TAB)
+
+    #         wait.until(
+    #             lambda d: hidden.get_attribute("value") == valor_esperado
+    #         )
+
+    # logging.info(f"✅ Combo '{name_hidden}' seleccionado: {texto}")

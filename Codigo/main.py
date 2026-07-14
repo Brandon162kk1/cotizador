@@ -4,7 +4,6 @@ from datetime import timedelta,datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
 from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
@@ -16,7 +15,7 @@ from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renomb
 from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
 from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs,seleccionar_combo_extjs,set_valor_campo_extjs,abrir_combo_en_fieldset
-from Metodos.funciones import responder_mensaje,aceptar_messagebox_extjs,click_boton_toolbar_extjs,click_boton_ventana
+from Metodos.funciones import responder_mensaje,aceptar_messagebox_extjs,click_boton_ventana,escribir_combo_extjs
 # -- Imports --
 import logging
 import os
@@ -541,50 +540,6 @@ def main():
 
             wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
 
-            def escribir_combo_extjs(wait, name_hidden, texto, valor_esperado=None):
-
-                combo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR,f"input[name='{name_hidden}'] + input")))
-                combo.click()
-                logging.info(f"🖱️ Clic en '{name_hidden}' ")
-
-                try:
-                    combo.send_keys(Keys.CONTROL, "a")
-                    logging.info(f"🖱️ Seleccionando todo el combo '{name_hidden}'")
-                except:
-                    pass
-
-                try:
-                    combo.clear()
-                    logging.info(f"✅ Eliminando contenido del combo '{name_hidden}'")
-                except:
-                    pass
-
-                combo.send_keys(texto)
-                time.sleep(2)
-                try:
-                    combo.send_keys(Keys.ENTER)
-                    logging.info("✅ El combo aceptó ENTER")
-                except:
-                    pass
-                finally:
-                    time.sleep(2)
-
-                # if valor_esperado is not None:
-                #     hidden = driver.find_element(By.NAME, name_hidden)
-
-                #     try:
-                #         wait.until(
-                #             lambda d: hidden.get_attribute("value") == valor_esperado
-                #         )
-                #     except TimeoutException:
-                #         combo.send_keys(Keys.TAB)
-
-                #         wait.until(
-                #             lambda d: hidden.get_attribute("value") == valor_esperado
-                #         )
-
-                # logging.info(f"✅ Combo '{name_hidden}' seleccionado: {texto}")
-
             # valor_esperado_idptipotercero = "J" if es_juridica else "N"
             escribir_combo_extjs(wait,"idptipotercero","PERSONA JURÍDICA" if es_juridica else "PERSONA NATURAL",valor_esperado="J" if es_juridica else "N")
             time.sleep(2)
@@ -611,7 +566,8 @@ def main():
 
         #--- Por Mientras ---
         ruc_cot_ej = os.getenv("ruc_cot")
-        escribir_input_en_modal(driver,wait,"numerodoc",ruc_cot_ej if es_juridica else ctx.cliente.num_doc,True)
+        #escribir_input_en_modal(driver,wait,"numerodoc",ruc_cot_ej if es_juridica else ctx.cliente.num_doc,True)
+        escribir_input_en_modal(driver,wait,"numerodoc",ctx.cliente.num_doc,True)
 
         time.sleep(3)
 
@@ -621,51 +577,76 @@ def main():
         
         campo_nombre = wait.until(EC.presence_of_element_located((By.NAME, "nombre")))
 
-        es_readonly = campo_nombre.get_attribute("readonly") is not None
+        #es_readonly = campo_nombre.get_attribute("readonly") is not None
+        valor = campo_nombre.get_attribute("value").strip()
 
-        if es_readonly:
-            logging.info("✅ El formulario quedó bloqueado (readonly), No se completan más datos.")
+        if valor:
+            #logging.info("✅ El formulario quedó bloqueado (readonly), No se completan más datos.")
+            logging.info("✅ El sistema autocompletó los datos.")
         else:
-            logging.info("⚠️ El formulario sigue editable. Se completan los demás datos.")
+            #logging.info("⚠️ El formulario sigue editable. Se completan los demás datos.")
+            logging.info("⚠️ El sistema no completó los datos. Se llenarán manualmente.")
 
             #------- MODAL PARA COMPLETAR DATOS NUEVOS DEL CLIENTE -------
             if ctx.cliente.cliente_nuevo:
                 logging.warning("⚠️ El asesor marco que es cliente nuevo, pero ya existe en la BD de la compañía")
+            
+            if es_juridica:
 
-            set_valor_campo_extjs(driver, wait, "nombre", ctx.cliente.nombres)
-            time.sleep(1)
-            #----------------------------------------------------------------
-            set_valor_campo_extjs(driver, wait, "apepaterno", ctx.cliente.apellido_paterno)
-            time.sleep(1)
-            #----------------------------------------------------------------
-            set_valor_campo_extjs(driver, wait, "apematerno", ctx.cliente.apellido_materno)
-            time.sleep(1)
-            #----------------------------------------------------------------
-            # ACA FALTA ESTADO CIVIL
-            #----------------------------------------------------------------
-            driver.execute_script("""
-                var radio = document.querySelector(
-                    "input[name='idpgenero'][value='" + arguments[0] + "']"
-                );
+                set_valor_campo_extjs(driver, wait, "nomcompleto", ctx.cliente.rz_social)
+                time.sleep(1)
+                set_valor_campo_extjs(driver, wait, "nomcompletocomercial", ctx.cliente.rz_social)
+                time.sleep(1)
+                driver.execute_script("""
+                var win = Ext.WindowMgr.getActive();
 
-                radio.checked = true;
+                var campo = win.find("name", "fecfundacion")[0];
 
-                radio.dispatchEvent(new Event('click', {bubbles:true}));
-                radio.dispatchEvent(new Event('change', {bubbles:true}));
-                """, ctx.cliente.sexo)
-            logging.info(f"✅ Radio 'Sexo' = '{ctx.cliente.sexo}'")
-            time.sleep(2)
-            #----------------------------------------------------------------
-            driver.execute_script("""
-            var win = Ext.WindowMgr.getActive();
+                campo.setValue(arguments[0]);
+                campo.fireEvent('change', campo, arguments[0]);
+                """, ctx.cliente.fecha_nac)
+                logging.info(f"✅ Fecha Fundación = '{ctx.cliente.fecha_nac}'")
+                time.sleep(1)
+                set_valor_campo_extjs(driver, wait, "dscacteconomica", ctx.cliente.rz_social)
+                input("Esperar")
 
-            var campo = win.find("name", "fecnacimiento")[0];
+            else:
 
-            campo.setValue(arguments[0]);
-            campo.fireEvent('change', campo, arguments[0]);
-            """, ctx.cliente.fecha_nac)
-            logging.info(f"✅ Fecha Nacimiento = '{ctx.cliente.fecha_nac}'")
-            time.sleep(1)
+                set_valor_campo_extjs(driver, wait, "nombre", ctx.cliente.nombres)
+                time.sleep(1)
+                #----------------------------------------------------------------
+                set_valor_campo_extjs(driver, wait, "apepaterno", ctx.cliente.apellido_paterno)
+                time.sleep(1)
+                #----------------------------------------------------------------
+                set_valor_campo_extjs(driver, wait, "apematerno", ctx.cliente.apellido_materno)
+                time.sleep(1)
+                #----------------------------------------------------------------
+                # ACA FALTA ESTADO CIVIL
+                #----------------------------------------------------------------
+                driver.execute_script("""
+                    var radio = document.querySelector(
+                        "input[name='idpgenero'][value='" + arguments[0] + "']"
+                    );
+
+                    radio.checked = true;
+
+                    radio.dispatchEvent(new Event('click', {bubbles:true}));
+                    radio.dispatchEvent(new Event('change', {bubbles:true}));
+                    """, ctx.cliente.sexo)
+                logging.info(f"✅ Radio 'Sexo' = '{ctx.cliente.sexo}'")
+                time.sleep(2)
+                #----------------------------------------------------------------
+                driver.execute_script("""
+                var win = Ext.WindowMgr.getActive();
+
+                var campo = win.find("name", "fecnacimiento")[0];
+
+                campo.setValue(arguments[0]);
+                campo.fireEvent('change', campo, arguments[0]);
+                """, ctx.cliente.fecha_nac)
+                logging.info(f"✅ Fecha Nacimiento = '{ctx.cliente.fecha_nac}'")
+                time.sleep(1)
+
             #----------------------------------------------------------------
             abrir_combo_en_fieldset(driver, "Direcciones", "idedistrito")
             time.sleep(1)
@@ -719,100 +700,68 @@ def main():
             if "Satisfactoriamente" in mensaje:
                 logging.info("✅ Operación exitosa")
 
-                #--- PROBANDO SI ES UN CLIENTE NUEVO Y LOS DATOS SON CORRECTOS---
+                responder_mensaje(driver, wait, "Aceptar")
+
                 try:
-                    # Clic en Aceptar mediante ExtJS
-                    driver.execute_script("""
-                        var win = Ext.WindowMgr.getActive();
+                    # Esperar que desaparezca el MessageBox
+                    wait.until(
+                        EC.invisibility_of_element_located((
+                            By.XPATH,
+                            "//div[contains(@class,'x-window-dlg') and .//span[contains(@class,'ext-mb-text')]]"
+                        ))
+                    )
 
-                        if(!win)
-                            throw "No existe MessageBox";
+                    logging.info("✅ MessageBox cerrado")
+                except:
+                    time.sleep(10)
+                    logging.info("✅ Se espero 10 segundos")
+                #----------------------------------------------
+                try:
+                    # Esperar que exista la ventana Persona Natural
+                    ventana = wait.until(
+                        lambda d: next(
+                            (
+                                v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                                if v.is_displayed()
+                                and v.find_element(
+                                    By.CSS_SELECTOR,
+                                    ".x-window-header-text"
+                                ).text.strip() != "Nuevo Asegurado"
+                            ),
+                            None
+                        )
+                    )
 
-                        var btn = null;
-
-                        win.buttons.each(function(b){
-                            if(b.text === "Aceptar"){
-                                btn = b;
-                            }
-                        });
-
-                        if(!btn)
-                            throw "No existe botón Aceptar";
-
-                        btn.fireEvent('click', btn);
-                    """)
-
-                    logging.info("🖱️ Botón Aceptar presionado -1")       
-                    time.sleep(3)
-                    click_boton_toolbar_extjs(driver, wait, "tb-exit")
-
-                    logging.info("Funciono el primero OJO")
                 except:
 
-                    responder_mensaje(driver, wait, "Aceptar")
+                    titulo_esperado = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}".upper()
 
-                    try:
-                        # Esperar que desaparezca el MessageBox
-                        wait.until(
-                            EC.invisibility_of_element_located((
-                                By.XPATH,
-                                "//div[contains(@class,'x-window-dlg') and .//span[contains(@class,'ext-mb-text')]]"
-                            ))
+                    ventana = wait.until(
+                        lambda d: next(
+                            (
+                                v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
+                                if v.is_displayed()
+                                and titulo_esperado in v.find_element(
+                                    By.CSS_SELECTOR,
+                                    ".x-window-header-text"
+                                ).text.upper()
+                            ),
+                            None
                         )
+                    )
 
-                        logging.info("✅ MessageBox cerrado")
-                    except:
-                        time.sleep(10)
-                        logging.info("✅ Se espero 10 segundos")
-                    #----------------------------------------------
-                    try:
-                        # Esperar que exista la ventana Persona Natural
-                        ventana = wait.until(
-                            lambda d: next(
-                                (
-                                    v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
-                                    if v.is_displayed()
-                                    and v.find_element(
-                                        By.CSS_SELECTOR,
-                                        ".x-window-header-text"
-                                    ).text.strip() != "Nuevo Asegurado"
-                                ),
-                                None
-                            )
-                        )
+                titulo = ventana.find_element(By.CSS_SELECTOR,".x-window-header-text").text
 
-                    except:
+                logging.info(f"✅ Ventana encontrada: {titulo}")
 
-                        titulo_esperado = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}".upper()
+                # Buscar el botón Salir SOLO dentro de esa ventana
+                boton = ventana.find_element(By.CSS_SELECTOR,"button.tb-exit")
 
-                        ventana = wait.until(
-                            lambda d: next(
-                                (
-                                    v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
-                                    if v.is_displayed()
-                                    and titulo_esperado in v.find_element(
-                                        By.CSS_SELECTOR,
-                                        ".x-window-header-text"
-                                    ).text.upper()
-                                ),
-                                None
-                            )
-                        )
+                wait.until(lambda d: boton.is_displayed() and boton.is_enabled())
 
-                    titulo = ventana.find_element(By.CSS_SELECTOR,".x-window-header-text").text
+                driver.execute_script("arguments[0].click();", boton)
 
-                    logging.info(f"✅ Ventana encontrada: {titulo}")
-
-                    # Buscar el botón Salir SOLO dentro de esa ventana
-                    boton = ventana.find_element(By.CSS_SELECTOR,"button.tb-exit")
-
-                    wait.until(lambda d: boton.is_displayed() and boton.is_enabled())
-
-                    driver.execute_script("arguments[0].click();", boton)
-
-                    logging.info("🖱️ Clic en Salir")
-
-                    logging.info("Funciono el segundo OJO")
+                logging.info("🖱️ Clic en Salir")
 
             elif "input" in mensaje:
                 raise Exception(f"{mensaje}")

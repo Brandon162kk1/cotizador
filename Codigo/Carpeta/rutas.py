@@ -3,7 +3,7 @@ import time
 import logging
 import base64
 
-from Tiempo.fechas_horas import get_timestamp#,get_dia,get_mes,get_anio
+from Tiempo.fechas_horas import get_timestamp
 from io import StringIO
 
 #------Carpetas de Descargas y Volumen del Docker----------
@@ -100,13 +100,12 @@ def crear_carpeta_descargas(organizacion,ctx):
         force=True
     )
 
-    prefijo = "PRUEBAS_" if ctx.entorno == "LOCAL" else ""
+    prefijo = "PRUEBAS_" if not ctx.entorno else ""
 
     # 📁 rutas
     carpeta_base = os.path.join(download_path, f"{prefijo}Jishu_Car")
     carpeta_empresa = os.path.join(carpeta_base, organizacion)
     carpeta_solicitud = os.path.join(carpeta_empresa,ctx.solicitud.capitalize())
-    #carpeta_unica = os.path.join(carpeta_solicitud, f"Cot_{ctx.id_cot}_{get_dia()}-{get_mes()}-{get_anio()}_{get_timestamp()}")
     carpeta_unica = os.path.join(carpeta_solicitud, f"{ctx.id_cot}_{get_timestamp()}")
 
     # 🏗️ crear estructura completa

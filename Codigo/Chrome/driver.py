@@ -47,17 +47,17 @@ def abrirDriver(ruta):
         if os.name == 'nt':
             from webdriver_manager.chrome import ChromeDriverManager
             service = Service(ChromeDriverManager().install())
-            logging.info("🪟 Detectado Windows, usando ChromeDriverManager")
+            #logging.info("🪟 Detectado Windows, usando ChromeDriverManager")
         else:
             # Ruta típica en el contenedor Docker
             ruta_chromedriver = "/usr/local/bin/chromedriver"
             if os.path.exists(ruta_chromedriver):
                 service = Service(ruta_chromedriver)
-                logging.info(f"🐧 Detectado Linux, usando path: {ruta_chromedriver}")
+                #logging.info(f"🐧 Detectado Linux, usando path: {ruta_chromedriver}")
             else:
                 from webdriver_manager.chrome import ChromeDriverManager
                 service = Service(ChromeDriverManager().install())
-                logging.info("🐧 Detectado Linux, pero no se encontró chromedriver en /usr/local/bin, usando ChromeDriverManager")
+                #logging.info("🐧 Detectado Linux, pero no se encontró chromedriver en /usr/local/bin, usando ChromeDriverManager")
 
         driver = webdriver.Chrome(service=service, options=chrome_options)
         logging.info("🟢 ChromeDriver iniciado correctamente")

@@ -35,7 +35,7 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
         celular=ctx.cliente.celular,
         correo=ctx.cliente.correo,
         uso=ctx.vehiculo.uso.capitalize(),
-        vehiculo=f"{ctx.vehiculo.modelo}|{ctx.vehiculo.marca}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}",
+        vehiculo=f"{ctx.vehiculo.modelo}|{ctx.vehiculo.marca.upper()}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}",
         año=ctx.vehiculo.anio,
         precio=f"{ctx.vehiculo.valor}",
         gas='Si' if ctx.vehiculo.gas else 'No',

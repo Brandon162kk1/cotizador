@@ -216,7 +216,6 @@ def ingresar_fecha_extjs(driver, wait, name, fecha_ddmmyyyy,texto):
 
 def seleccionar_modelo_extjs(driver,wait,texto_busqueda,texto_opcion,name_hidden="selmodelodevehiculo"):
 
-
     # 1️⃣ Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
 
@@ -244,7 +243,8 @@ def seleccionar_modelo_extjs(driver,wait,texto_busqueda,texto_opcion,name_hidden
 def resolver_empresa(ctx):
     dispatch = {
         'dongfeng': 'Dongfeng',
-        'pangu': 'Pangu'
+        'pangu': 'Pangu',
+        'zual': 'Zual'
     }
 
     org = (ctx.vehiculo.organizacion or "").lower()

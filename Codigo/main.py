@@ -3,7 +3,7 @@
 from datetime import timedelta,datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import WebDriverException,TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
@@ -74,7 +74,20 @@ data = normalizar_data(data)
 
 # ------------------ CLASES ---------------
 
-class Vehiculo:
+class BaseModel:
+
+    def to_dict(self, ocultar=None):
+        data = self.__dict__.copy()
+
+        if ocultar:
+            for campo in ocultar:
+                if campo in data:
+                    data[campo] = "********"
+
+        return data
+
+class Vehiculo(BaseModel):
+
     def __init__(self, data: dict):
 
         self.organizacion = data.get("ORGANIZACION") or ""
@@ -105,7 +118,8 @@ class Vehiculo:
     def __str__(self):
         return f"{self.modelo.upper()}|{self.marca.upper()}|{self.tipo}|{self.clase}"
 
-class Usuario:
+class Usuario(BaseModel):
+
     def __init__(self, data: dict):
 
         self.usuario = data.get("USUARIO")
@@ -116,14 +130,16 @@ class Usuario:
         self.vendedor = data.get("VENDEDOR")
         self.dni = safe_int(data.get("DNI_VENDEDOR"))
 
-class Credito:
+class Credito(BaseModel):
+
     def __init__(self, data: dict):
 
         self.tiempo = data.get("TIEMPO_CREDITO")
         self.cuotas = safe_int(data.get("CUOTAS"))
         self.forma_pago = data.get("FORMA_PAGO")
 
-class Cliente:
+class Cliente(BaseModel):
+
     def __init__(self, data: dict):
 
         self.cliente_nuevo = data.get("CLIENTE_NUEVO")
@@ -158,10 +174,10 @@ class CotizacionContexto:
 
     def __str__(self):
         return pformat({
-            "usuario": self.usuario.__dict__,
-            "vehiculo": self.vehiculo.__dict__,
-            "credito": self.credito.__dict__,
-            "cliente": self.cliente.__dict__
+            "Usuario": self.usuario.to_dict(ocultar=["usuario","contrasena","dni"]),
+            "Vehículo": self.vehiculo.to_dict(ocultar=["num_rodaje","num_motor","num_serie"]),
+            "Crédito": self.credito.to_dict(),
+            "Cliente": self.cliente.to_dict(ocultar=["num_doc","celular","correo","rz_social"]),
         })
 
 # ------------------ USO ------------------
@@ -173,6 +189,8 @@ def main():
     poliza = False
     cotizacion = False
     driver = None
+    error = False
+    msj_error = None
 
     nom_empresa = resolver_empresa(ctx)
 
@@ -199,9 +217,9 @@ def main():
  
         pass_input = wait.until(EC.presence_of_element_located((By.ID, "CLAVE")))
         pass_input.clear()
-        password = os.getenv("passwordRimac") if ctx.entorno.upper() == "LOCAL" else ctx.usuario.contrasena
-        pass_input.send_keys(password)
-        logging.info(f"⌨️ Password '{password}' digitado")
+        #password = os.getenv("passwordRimac") if ctx.entorno.upper() == "LOCAL" else ctx.usuario.contrasena
+        pass_input.send_keys(ctx.usuario.contrasena)
+        logging.info(f"⌨️ Password '{ctx.usuario.contrasena}' digitado")
  
         ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn)
@@ -535,10 +553,12 @@ def main():
             raise Exception("No apareció modal para registrar cliente")
 
         time.sleep(5)
-        #------- MODAL NUEVO ASEGURADO PARA CAMBIAR TIPO DE PERSONA Y TIPO DE DOCUMENTO ----------------------
-        try:
 
-            wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
+        #------- MODAL NUEVO ASEGURADO PARA CAMBIAR TIPO DE PERSONA Y TIPO DE DOCUMENTO ----------------------
+ 
+        wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
+
+        if es_juridica:
 
             # valor_esperado_idptipotercero = "J" if es_juridica else "N"
             escribir_combo_extjs(wait,"idptipotercero","PERSONA JURÍDICA" if es_juridica else "PERSONA NATURAL",valor_esperado="J" if es_juridica else "N")
@@ -558,18 +578,13 @@ def main():
 
             escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc)
 
-        except Exception as e:
-            raise Exception(f"Error seleccionando tipo de tercero o documento | Motivo: {e}")
-        #-----------------------------------------------------------------------------------------------------
-
         time.sleep(5)
 
-        #--- Por Mientras ---
-        ruc_cot_ej = os.getenv("ruc_cot")
-        #escribir_input_en_modal(driver,wait,"numerodoc",ruc_cot_ej if es_juridica else ctx.cliente.num_doc,True)
+        #escribir_input_en_modal(driver,wait,"numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc,True)
         escribir_input_en_modal(driver,wait,"numerodoc",ctx.cliente.num_doc,True)
 
         time.sleep(3)
+        #-----------------------------------------------------------------------------------------------------
 
         click_boton_buscar_en_modal_extjs(driver)
 
@@ -581,13 +596,10 @@ def main():
         valor = campo_nombre.get_attribute("value").strip()
 
         if valor:
-            #logging.info("✅ El formulario quedó bloqueado (readonly), No se completan más datos.")
-            logging.info("✅ El sistema autocompletó los datos.")
+            logging.info("✅ El sistema autocompletó los datos")
         else:
-            #logging.info("⚠️ El formulario sigue editable. Se completan los demás datos.")
-            logging.info("⚠️ El sistema no completó los datos. Se llenarán manualmente.")
+            logging.info("⚠️ El sistema no completó los datos. Se llenarán manualmente")
 
-            #------- MODAL PARA COMPLETAR DATOS NUEVOS DEL CLIENTE -------
             if ctx.cliente.cliente_nuevo:
                 logging.warning("⚠️ El asesor marco que es cliente nuevo, pero ya existe en la BD de la compañía")
             
@@ -607,7 +619,91 @@ def main():
                 """, ctx.cliente.fecha_nac)
                 logging.info(f"✅ Fecha Fundación = '{ctx.cliente.fecha_nac}'")
                 time.sleep(1)
-                set_valor_campo_extjs(driver, wait, "dscacteconomica", ctx.cliente.rz_social)
+
+                def seleccionar_ciiu(driver, wait, codigoActv):
+
+                    hidden = wait.until(EC.presence_of_element_located((By.NAME, "dscacteconomica")))
+                    logging.info(" Perfecto 1")
+
+                    contenedor = hidden.find_element(By.XPATH,"./ancestor::div[contains(@class,'x-form-field-wrap')]")
+                    logging.info(" Perfecto 2")
+
+                    lupa = contenedor.find_element(By.CSS_SELECTOR,"img.x-form-search-trigger")
+                    logging.info(" Perfecto 3")
+
+                    ActionChains(driver).move_to_element(lupa).click().perform()
+                    logging.info(" Perfecto 4")
+
+                    wait.until(EC.visibility_of_element_located((By.XPATH,"//span[contains(.,'Buscar CIIU')]")))
+                    logging.info(" Perfecto 5")
+
+                    codigo = wait.until(EC.element_to_be_clickable((By.NAME, "codigociiu")))
+                    logging.info(" Perfecto 6")
+                    codigo.clear()
+                    logging.info(" Perfecto 7")
+                    codigo.send_keys(codigoActv)
+                    logging.info(" Perfecto 8")
+
+                    click_boton_buscar_en_modal_extjs(driver)
+                    logging.info(" Perfecto 9")
+
+                    # Mas robusto
+                    # fila = wait.until(
+                    #     EC.element_to_be_clickable((
+                    #         By.XPATH,
+                    #         f"//div[contains(@class,'x-grid3-body')]"
+                    #         f"//tr[.//div[normalize-space()='{codigoActv}']]"
+                    #     ))
+                    # )
+
+                    fila = wait.until(
+                        EC.element_to_be_clickable((
+                            By.XPATH,
+                            f"//div[contains(@class,'x-grid3-body')]"
+                            f"//tr[td[4]//div[normalize-space()='{codigoActv}']]"
+                        ))
+                    )
+
+                    logging.info(" Perfecto 10")
+                    try:
+                        fila.click()
+                        logging.info(" Perfecto 11")
+                    except:
+                        ActionChains(driver).double_click(fila).perform()
+                        logging.info(" Perfecto 12")
+                    
+                    def click_boton_seleccionar_en_modal_extjs(wait,driver):
+
+                        wait.until(
+                            lambda d: d.execute_script("return typeof Ext!='undefined'")
+                        )
+
+                        driver.execute_script("""
+                        var win = Ext.WindowMgr.getActive();
+
+                        if(!win)
+                            throw "No hay modal";
+
+                        var botones = win.el.dom.querySelectorAll("button.tb-view");
+
+                        for(var i=0;i<botones.length;i++){
+
+                            if(botones[i].offsetParent!==null){
+                                botones[i].click();
+                                return;
+                            }
+                        }
+
+                        throw "No se encontró el botón Seleccionar";
+                        """)
+
+                    click_boton_seleccionar_en_modal_extjs(wait,driver)
+                    logging.info(" Perfecto 13")
+
+                seleccionar_ciiu(driver, wait, "5610")
+                # escribir_combo_extjs(wait,"dscacteconomica","Actividades de restaurantes y de servicio móvil de comidas")
+                time.sleep(1)
+
                 input("Esperar")
 
             else:
@@ -781,6 +877,8 @@ def main():
 
                 time.sleep(5)
 
+                input("Esperar")
+
                 click_boton_ventana(driver,wait,"Validación de tercero","Cargar datos",ctx)
             
             #-------------------------------------------------------------
@@ -894,26 +992,60 @@ def main():
         else:
             raise Exception("No se descargo ninguna cotización")
 
+    except WebDriverException as e:
+
+        error = True
+        logging.warning(f"❌ Error técnico de Selenium | {e}")
+        #msj_error = "Problemas Técnicos del Agente"
+
+        #-----------------------------------------------------
+        toast_error = (By.CSS_SELECTOR,"#message-div .message")
+        modal_validacion = (By.ID, "lblContenido")
+
+        resultado_et = wait.until(
+            EC.any_of(
+                EC.visibility_of_element_located(toast_error),
+                EC.visibility_of_element_located(modal_validacion)
+            )
+        )
+
+        texto = resultado_et.text.strip()
+
+        if resultado_et.get_attribute("id") == "lblContenido":
+            msj_error = texto
+        else:
+            msj_error = "Problemas Técnicos del Agente"
+        #-----------------------------------------------------
+
     except Exception as e:
-        logging.info(f"⚠️ Conclusión: {e}")
-        tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-        if ctx.entorno.upper() == "PRODUCCION" :
-            enviarCorreoGeneral(ruta_carpeta,ctx)
-        renombrar_carpeta(ruta_carpeta)
+
+        error = True
+        logging.warning(f"⚠️ Error funcional: {e}")
+        msj_error = str(e)
+
     finally:
 
+        #if ctx.entorno:
+        if error:
+            #actualizar_estado_movimiento(ctx.id_cot,msj_error)
+            tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
+            if ctx.entorno:
+                enviarCorreoGeneral(ruta_carpeta,ctx)
+            renombrar_carpeta(ruta_carpeta)
+        
         if driver:
             driver.quit()
+        
+        if ctx.entorno and cotizacion:
 
-        if cotizacion:
             archivo = os.path.join(ruta_carpeta,f"cot_{ctx.id_cot}.pdf")
             logging.info(f"⌛ Enviando Cotizacion al movimiento → {ctx.id_cot}")
             enviar_documento(ctx.id_cot,archivo,"cotizacion")
 
-        if poliza:
-            archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
-            logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
-            enviar_documento(ctx.id_cot,archivo,"poliza")
+            if poliza:
+                archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
+                logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
+                enviar_documento(ctx.id_cot,archivo,"poliza")
 
 #-------------------------------------------
 

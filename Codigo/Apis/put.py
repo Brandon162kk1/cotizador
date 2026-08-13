@@ -41,7 +41,7 @@ def enviar_documento(id_movimiento, ruta_pdf,documento):
         if response.status_code in (200, 201, 204):
             logging.info(f"✅ {documento.capitalize()} enviada correctamente | Movimiento {id_movimiento}")
         else:
-            logging.error(f"❌ Problemas enviando {documento.capitalize()} | Movimiento {id_movimiento} | Status {response.status_code} | Resp {response.text}")
+            logging.error(f"⚠️ Problemas enviando {documento.capitalize()} | Movimiento {id_movimiento} | Status {response.status_code} | Resp {response.text}")
 
     except Exception as e:
         logging.error(f"❌ Error enviando {documento.capitalize()} | Movimiento {id_movimiento} | {e}")

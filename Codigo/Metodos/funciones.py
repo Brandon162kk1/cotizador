@@ -12,6 +12,168 @@ from selenium.common.exceptions import TimeoutException
 import logging
 import time
 
+def interactuar_combo_por_name2(driver, wait, name_hidden, texto):
+
+    wait.until(
+        EC.invisibility_of_element_located(
+            (By.CSS_SELECTOR, "div.ext-el-mask")
+        )
+    )
+
+    # 1. Hidden
+    hidden = wait.until(
+        EC.presence_of_element_located(
+            (By.NAME, name_hidden)
+        )
+    )
+
+    # Guardar valor anterior
+    valor_anterior = hidden.get_attribute("value")
+
+    logging.info(
+        f"🔎 Combo '{name_hidden}' - valor anterior: '{valor_anterior}'"
+    )
+
+    # 2. Contenedor
+    contenedor = hidden.find_element(
+        By.XPATH,
+        "./ancestor::div[contains(@class,'x-form-field-wrap')]"
+    )
+
+    # 3. Input visible
+    input_visible = contenedor.find_element(
+        By.XPATH,
+        ".//input[contains(@class,'x-form-field') and not(@type='hidden')]"
+    )
+
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center'});",
+        input_visible
+    )
+
+    input_visible.click()
+
+    input_visible.send_keys(
+        Keys.CONTROL,
+        "a"
+    )
+
+    input_visible.send_keys(
+        Keys.BACKSPACE
+    )
+
+    input_visible.send_keys(texto)
+
+    logging.info(
+        f"⌨️ Digitando '{texto}' en '{name_hidden}'"
+    )
+
+    # 4. Esperar lista
+    wait.until(
+        EC.visibility_of_element_located((
+            By.XPATH,
+            "//div[contains(@class,'x-combo-list') "
+            "and not(contains(@style,'display: none'))]"
+        ))
+    )
+
+    # 5. IMPORTANTE:
+    # ExtJS puede recrear el input
+    input_visible = contenedor.find_element(
+        By.XPATH,
+        ".//input[contains(@class,'x-form-field') and not(@type='hidden')]"
+    )
+
+    # 6. ENTER
+    input_visible.send_keys(Keys.ARROW_DOWN)
+    input_visible.send_keys(Keys.ENTER)
+
+    logging.info(
+        f"↵ ENTER enviado para '{texto}'"
+    )
+
+    # 7. Esperar que REALMENTE cambie el hidden
+    try:
+
+        wait.until(
+            lambda d:
+                d.find_element(By.NAME, name_hidden)
+                .get_attribute("value") != valor_anterior
+        )
+
+        nuevo_valor = hidden.get_attribute("value")
+
+        logging.info(
+            f"✅ Combo '{name_hidden}' confirmado con ENTER"
+        )
+
+        logging.info(
+            f"   Valor anterior: '{valor_anterior}'"
+        )
+
+        logging.info(
+            f"   Valor nuevo: '{nuevo_valor}'"
+        )
+
+        return
+
+    except TimeoutException:
+
+        logging.warning(
+            f"⚠️ ENTER no confirmó '{texto}'"
+        )
+
+    # ==================================================
+    # PLAN B - CLIC DIRECTO
+    # ==================================================
+
+    logging.info(
+        f"🔄 Intentando seleccionar '{texto}' mediante clic"
+    )
+
+    opcion = wait.until(
+        EC.element_to_be_clickable((
+            By.XPATH,
+            f"""
+            //div[
+                contains(@class,'x-combo-list')
+                and not(contains(@style,'display: none'))
+            ]
+            //div[
+                contains(@class,'x-combo-list-item')
+                and normalize-space()='{texto}'
+            ]
+            """
+        ))
+    )
+
+    opcion.click()
+
+    logging.info(
+        f"🖱️ Clic directo en '{texto}'"
+    )
+
+    # 8. Esperar cambio REAL
+    wait.until(
+        lambda d:
+            d.find_element(By.NAME, name_hidden)
+            .get_attribute("value") != valor_anterior
+    )
+
+    nuevo_valor = hidden.get_attribute("value")
+
+    logging.info(
+        f"✅ Combo '{name_hidden}' confirmado por clic"
+    )
+
+    logging.info(
+        f"   Valor anterior: '{valor_anterior}'"
+    )
+
+    logging.info(
+        f"   Valor nuevo: '{nuevo_valor}'"
+    )
+
 # --- Metodos Funcionan ---
 def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
@@ -30,7 +192,7 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
     input_visible.click()
     input_visible.send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
     input_visible.send_keys(texto)
-    #logging.info("⌨️ Digitando texto")
+    logging.info("⌨️ Digitando texto")
 
     # 4. Esperar lista
     wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list')]")))
@@ -42,15 +204,15 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
     input_visible.send_keys(Keys.ARROW_DOWN)
     time.sleep(1)
     input_visible.send_keys(Keys.ENTER)
-    #logging.info("↵ Enter enviado")
+    logging.info("↵ Enter enviado")
 
     # 7. Validar hidden (espera corta)
     try:
         wait.until(lambda d: hidden.get_attribute("value"))
-        #logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER")
+        logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER")
         return
     except:
-        logging.info("❌ ENTER no confirmó, usando PLAN B (clic directo)")
+        #logging.error("❌ ENTER no confirmó, usando PLAN B (clic directo)")
         raise Exception("Problemas técnicos, comunícate con el área de sistemas")
 
     # 🧨 PLAN B — click directo en la opción
@@ -60,7 +222,7 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
     # 8. Validar nuevamente
     wait.until(lambda d: hidden.get_attribute("value"))
-    #logging.info(f"✅ Combo '{name_hidden}' confirmado por click")
+    logging.info(f"✅ Combo '{name_hidden}' confirmado por clic")
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 
@@ -94,7 +256,8 @@ def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
             f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto_opcion}')]"
         )))
     except TimeoutException as e:
-        raise Exception(f"Plan '{texto_opcion}' no configurado en Rimac | Motivo : {e}")
+        logging.exception(e)
+        raise Exception(f"Plan '{texto_opcion}' no configurado en Rimac")
 
     opcion.click()
     #logging.info("✅ Opción seleccionada")
@@ -194,7 +357,7 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     # 11️⃣ validación final
     if not hidden.get_attribute("value"):
-        raise Exception(f"❌ Combo '{name_hidden}' no se confirmó")
+        raise Exception(f"Combo '{name_hidden}' no se confirmó")
 
     logging.info(f"✅ Combo '{name_hidden}' confirmado")
 

@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
 from Apis.put import enviar_documento
-from Apis.post import enviarCorreoGeneral
+from Apis.post import enviarCorreoGeneral,enviar_x_wsp
 from Apis.get import codigo_compania
 from Chrome.driver import tomar_capturar,abrirDriver
 from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renombrar_carpeta
@@ -91,6 +91,7 @@ class Vehiculo(BaseModel):
     def __init__(self, data: dict):
 
         self.organizacion = data.get("ORGANIZACION") or ""
+        self.sede = data.get("SEDE")
         self.plan = data.get("PLAN")
 
         self.num_rodaje = data.get("NUM_RODAJE")
@@ -126,9 +127,11 @@ class Usuario(BaseModel):
         self.contrasena = data.get("CONTRASEÑA")
         self.rol = data.get("ROL")
         self.canal = data.get("CANAL")
+        self.asesor = data.get("ASESOR")
         self.correo_asesor = data.get("CORREO_ASESOR")
         self.vendedor = data.get("VENDEDOR")
         self.dni = safe_int(data.get("DNI_VENDEDOR"))
+        self.celular = data.get("CEL_VENDEDOR")
 
 class Credito(BaseModel):
 
@@ -174,7 +177,7 @@ class CotizacionContexto:
 
     def __str__(self):
         return pformat({
-            "Usuario": self.usuario.to_dict(ocultar=["usuario","contrasena","dni"]),
+            "Usuario": self.usuario.to_dict(ocultar=["usuario","contrasena","dni","celular"]),
             "Vehículo": self.vehiculo.to_dict(ocultar=["num_rodaje","num_motor","num_serie"]),
             "Crédito": self.credito.to_dict(),
             "Cliente": self.cliente.to_dict(ocultar=["num_doc","celular","correo","rz_social"]),
@@ -206,7 +209,8 @@ def main():
         driver.get(URL_SAS)
         logging.info("🔐 Iniciando sesión en RIMAC SAS")
 
-        #logging.info(ctx)
+        if not ctx.entorno:
+            logging.info(ctx)
  
         user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
         user_input.clear()
@@ -224,6 +228,8 @@ def main():
         ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn)
         logging.info("🖱️ Clic en 'Ingresar'")
+
+        #raise Exception("Probando el envio de Evolution API")
 
         token_locator = (By.ID, "TOKEN")
         mensaje_locator = (By.ID, "lblMensaje")
@@ -256,6 +262,7 @@ def main():
 
         for intento in range(1, max_intentos + 1):
 
+            logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
             try:
 
                 # Espera hasta que ocurra cualquiera de las dos cosas
@@ -277,7 +284,7 @@ def main():
                     if mensaje:
                         raise Exception(mensaje)
 
-                logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
+                #logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
                 span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
 
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});",span_transacciones)
@@ -378,7 +385,8 @@ def main():
         logging.info(f"🖱️ Opción seleccionada para SOAT → '{soat}'")
         time.sleep(3)
         #----------------------------
-        inspeccion = 'SI' if ctx.vehiculo.inspeccion else 'NO'
+        #inspeccion = 'SI' if ctx.vehiculo.inspeccion else 'NO'
+        inspeccion = 'NO'
         escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",inspeccion,1)
         logging.info(f"🖱️ Opción seleccionada para INSPECCION → '{inspeccion}'")
         time.sleep(3)
@@ -448,6 +456,7 @@ def main():
         driver.execute_script("arguments[0].click();", boton_seleccionar)
         logging.info("🖱️ Clic en Seleccionar")
 
+        # Avisar al ejecutivo por wsp para que confirme si es con descuento o no
         descuento = False
 
         if descuento :
@@ -995,7 +1004,7 @@ def main():
     except WebDriverException as e:
 
         error = True
-        logging.warning(f"❌ Error técnico de Selenium | {e}")
+        logging.exception(f"❌ Error técnico de Selenium | {e}")
         #msj_error = "Problemas Técnicos del Agente"
 
         #-----------------------------------------------------
@@ -1031,21 +1040,26 @@ def main():
             tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
             if ctx.entorno:
                 enviarCorreoGeneral(ruta_carpeta,ctx)
+                logging.info(f"⌛ Enviando Notificación de Error por WhatsApp")
+                enviar_x_wsp(ctx,msj_error,"notificacion",None)
             renombrar_carpeta(ruta_carpeta)
         
         if driver:
             driver.quit()
         
-        if ctx.entorno and cotizacion:
-
+        if cotizacion:
             archivo = os.path.join(ruta_carpeta,f"cot_{ctx.id_cot}.pdf")
-            logging.info(f"⌛ Enviando Cotizacion al movimiento → {ctx.id_cot}")
-            enviar_documento(ctx.id_cot,archivo,"cotizacion")
+            if ctx.entorno:
+                logging.info(f"⌛ Enviando Cotizacion al movimiento → {ctx.id_cot}")
+                enviar_documento(ctx.id_cot,archivo,"cotizacion")
+                logging.info(f"⌛ Enviando Notificación por WhatsApp")
+                enviar_x_wsp(ctx,None,"documento",archivo)
 
-            if poliza:
-                archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
-                logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
-                enviar_documento(ctx.id_cot,archivo,"poliza")
+
+        # if poliza and ctx.entorno:
+        #     archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
+        #     logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
+        #     enviar_documento(ctx.id_cot,archivo,"poliza")
 
 #-------------------------------------------
 

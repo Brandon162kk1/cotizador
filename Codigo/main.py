@@ -589,8 +589,8 @@ def main():
 
         time.sleep(5)
 
-        #escribir_input_en_modal(driver,wait,"numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc,True)
-        escribir_input_en_modal(driver,wait,"numerodoc",ctx.cliente.num_doc,True)
+        escribir_input_en_modal(driver,wait,"numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc,True)
+        #escribir_input_en_modal(driver,wait,"numerodoc",ctx.cliente.num_doc,True)
 
         time.sleep(3)
         #-----------------------------------------------------------------------------------------------------
@@ -916,9 +916,8 @@ def main():
         #-------------------------------------------------------------------------------------
         time.sleep(10)
         
-        # Logica para eliminar los datos de un cliente si en caso no tenemos sus datos completos y queremos que la cotizacion salga sin datos del cliente
-        sin_datos_cliente = es_juridica
-        if sin_datos_cliente:
+        # Logica para eliminar los datos de un cliente Juridico, queremos que la cotizacion salga sin datos del cliente por el momento
+        if es_juridica:
             try:
                 click_tab_terceros_extjs(driver)
                 logging.info("🖱️ Clic en Tab 'Terceros'")
@@ -1039,6 +1038,7 @@ def main():
             #actualizar_estado_movimiento(ctx.id_cot,msj_error)
             tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
             if ctx.entorno:
+                logging.info(f"⌛ Enviando Correo al equipo Jishu")
                 enviarCorreoGeneral(ruta_carpeta,ctx)
                 logging.info(f"⌛ Enviando Notificación de Error por WhatsApp")
                 enviar_x_wsp(ctx,msj_error,"notificacion",None)

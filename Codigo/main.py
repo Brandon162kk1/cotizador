@@ -1038,9 +1038,7 @@ def main():
             #actualizar_estado_movimiento(ctx.id_cot,msj_error)
             tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
             if ctx.entorno:
-                logging.info(f"⌛ Enviando Correo al equipo Jishu")
                 enviarCorreoGeneral(ruta_carpeta,ctx)
-                logging.info(f"⌛ Enviando Notificación de Error por WhatsApp")
                 enviar_x_wsp(ctx,msj_error,"notificacion",None)
             renombrar_carpeta(ruta_carpeta)
         
@@ -1050,11 +1048,8 @@ def main():
         if cotizacion:
             archivo = os.path.join(ruta_carpeta,f"cot_{ctx.id_cot}.pdf")
             if ctx.entorno:
-                logging.info(f"⌛ Enviando Cotizacion al movimiento → {ctx.id_cot}")
                 enviar_documento(ctx.id_cot,archivo,"cotizacion")
-                logging.info(f"⌛ Enviando Notificación por WhatsApp")
                 enviar_x_wsp(ctx,None,"documento",archivo)
-
 
         # if poliza and ctx.entorno:
         #     archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")

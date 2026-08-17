@@ -29,6 +29,9 @@ env = Environment(loader=FileSystemLoader(ruta_plantilla))
 
 def enviarCorreoGeneral(ruta_carpeta,ctx):
     
+    logging.info("-----------------------------")
+    logging.info(f"⌛ Enviando Correo al equipo Jishu")
+
     template = env.get_template("plantilla.html")
 
     imagenes = obtener_imagenes_error(ruta_carpeta)
@@ -79,6 +82,7 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
 def enviar_x_wsp(ctx,msj_error,tipo,archivo):
 
     logging.info("-----------------------------")
+    logging.info(f"⌛ Enviando Notificación por WhatsApp")
 
     telefono = str(ctx.usuario.celular).strip()
 

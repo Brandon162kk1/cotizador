@@ -1004,26 +1004,29 @@ def main():
 
         error = True
         logging.exception(f"❌ Error técnico de Selenium | {e}")
-        #msj_error = "Problemas Técnicos del Agente"
+        msj_error = "Problemas Técnicos del Agente"
 
-        #-----------------------------------------------------
-        toast_error = (By.CSS_SELECTOR,"#message-div .message")
-        modal_validacion = (By.ID, "lblContenido")
+        try:
+            #-----------------------------------------------------
+            toast_error = (By.CSS_SELECTOR,"#message-div .message")
+            modal_validacion = (By.ID, "lblContenido")
 
-        resultado_et = wait.until(
-            EC.any_of(
-                EC.visibility_of_element_located(toast_error),
-                EC.visibility_of_element_located(modal_validacion)
+            resultado_et = wait.until(
+                EC.any_of(
+                    EC.visibility_of_element_located(toast_error),
+                    EC.visibility_of_element_located(modal_validacion)
+                )
             )
-        )
 
-        texto = resultado_et.text.strip()
+            texto = resultado_et.text.strip()
 
-        if resultado_et.get_attribute("id") == "lblContenido":
-            msj_error = texto
-        else:
-            msj_error = "Problemas Técnicos del Agente"
-        #-----------------------------------------------------
+            if resultado_et.get_attribute("id") == "lblContenido":
+                msj_error = texto
+            else:
+                msj_error = "Problemas Técnicos del Agente"
+            #-----------------------------------------------------
+        except Exception as inner_ex:
+            logging.warning(f"⚠️ No se pudo obtener el mensaje de error de la interfaz: {inner_ex}")
 
     except Exception as e:
 

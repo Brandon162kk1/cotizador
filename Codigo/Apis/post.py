@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import logging
 import os
 import base64
@@ -84,7 +84,14 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
     logging.info("-----------------------------")
     logging.info(f"⌛ Enviando Notificación por WhatsApp")
 
-    telefono = str(ctx.usuario.celular).strip()
+    # Intentar usar el celular del usuario (vendedor), y si no existe, usar el del cliente
+    celular = ctx.usuario.celular if ctx.usuario.celular else ctx.cliente.celular
+    
+    if not celular or str(celular).strip().lower() == "none":
+        logging.error("⚠️ No se pudo enviar WhatsApp: Teléfono del vendedor y cliente no están definidos")
+        return
+
+    telefono = str(celular).strip()
 
     if not telefono.startswith("51"):
         telefono = "51" + telefono
@@ -95,10 +102,10 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
     }
 
     if tipo == "notificacion":
-
+        motivo = msj_error if msj_error else "Problemas Técnicos del Agente"
         payload["mensaje"] = f"""Hubo problemas para realizar la cotización:
 📋 Registro: {ctx.id_cot}
-⚠️ Motivo: {msj_error}
+⚠️ Motivo: {motivo}
         """
 
     elif tipo == "documento":

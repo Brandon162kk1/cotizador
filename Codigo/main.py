@@ -221,7 +221,6 @@ def main():
  
         pass_input = wait.until(EC.presence_of_element_located((By.ID, "CLAVE")))
         pass_input.clear()
-        #password = os.getenv("passwordRimac") if ctx.entorno.upper() == "LOCAL" else ctx.usuario.contrasena
         pass_input.send_keys(ctx.usuario.contrasena)
         logging.info(f"⌨️ Password '{ctx.usuario.contrasena}' digitado")
  
@@ -277,12 +276,21 @@ def main():
                     )
                 )
 
-                # Si apareció un mensaje, detener el proceso
+                # Si apareció un mensaje de error en la de login, detener el proceso
                 mensajes = driver.find_elements(*mensaje_locator)
                 if mensajes and mensajes[0].is_displayed():
                     mensaje = mensajes[0].text.strip()
                     if mensaje:
                         raise Exception(mensaje)
+
+                # --- NUEVO: Detectar popup de validación "Sesión iniciada con otro usuario" ---
+                # Buscamos botones o enlaces que tengan el texto 'Aceptar' dentro de modales de alerta
+                aceptar_botones = driver.find_elements(By.XPATH, "//input[@value='Aceptar'] | //button[normalize-space()='Aceptar'] | //a[normalize-space()='Aceptar']")
+                for btn in aceptar_botones:
+                    if btn.is_displayed():
+                        logging.info("⚠️ Detectado mensaje de validación en pantalla ('Sesión con otro usuario'). Cerrándolo...")
+                        driver.execute_script("arguments[0].click();", btn)
+                        time.sleep(2)
 
                 #logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
                 span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
@@ -300,7 +308,7 @@ def main():
                 time.sleep(3)
 
         else:
-            raise Exception("Credenciales o Token inválido / No se pudo cargar SAS")
+            raise Exception("Plataforma SAS fuera de servicio")
 
         #----------------------------
         span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']"))) # L
@@ -332,16 +340,39 @@ def main():
         #----------------------------
         click_fuera(driver)
         #----------------------------
-        boton = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Datos Particulares']")))
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", boton)
-        driver.execute_script("arguments[0].click();", boton)
-        logging.info("🖱️ Clic en 'Generar Datos Particulares'")
         #----------------------------
-        try:
-            wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-            logging.info("✅ Carga finalizada")
-        except TimeoutException:
-            raise Exception("Tiempo de espera excedido al generar datos particulares")
+        max_intentos_generar = 3
+        for intento_gen in range(1, max_intentos_generar + 1):
+            boton = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Datos Particulares']")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", boton)
+            driver.execute_script("arguments[0].click();", boton)
+            logging.info(f"🖱️ Clic en 'Generar Datos Particulares' (Intento {intento_gen})")
+            
+            try:
+                wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
+                logging.info("✅ Carga finalizada (Máscara oculta)")
+                
+                # Esperamos un momento a que renderice ExtJS y buscamos el elemento txtplaca_de_rodaje
+                time.sleep(3)
+                wait.until(EC.presence_of_element_located((By.NAME, "txtplaca_de_rodaje")))
+                logging.info("👁️ Campo 'txtplaca_de_rodaje' detectado con éxito")
+                break
+            except (TimeoutException, Exception) as e:
+                logging.warning(f"⚠️ El campo de la placa no apareció en el intento {intento_gen}. Reintentando...")
+                if intento_gen < max_intentos_generar:
+                    driver.refresh()
+                    time.sleep(5)
+                    # Si refrescamos, debemos volver a seleccionar los combos anteriores
+                    interactuar_combo_por_name(driver, wait, "iderolcanal", "CANAL NO TRADICIONAL")
+                    time.sleep(3)
+                    interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
+                    time.sleep(3)
+                    click_fuera(driver)
+                    seleccionar_combo_por_flecha(driver, wait, "ideplanselected", texto_base)
+                    time.sleep(3)
+                    click_fuera(driver)
+        else:
+            raise Exception("No se pudo cargar el formulario de Datos Particulares después de varios intentos.")
         #----------------------------
         escribir_input_por_name(driver, wait, "txtplaca_de_rodaje",ctx.vehiculo.num_rodaje,False)
         time.sleep(1)
@@ -1003,7 +1034,9 @@ def main():
     except WebDriverException as e:
 
         error = True
-        logging.exception(f"❌ Error técnico de Selenium | {e}")
+        logging.info("--------------------------------")
+        logging.error(f"❌ Error técnico de Selenium")
+        logging.exception(e)
         msj_error = "Problemas Técnicos del Agente"
 
         try:
@@ -1026,11 +1059,14 @@ def main():
                 msj_error = "Problemas Técnicos del Agente"
             #-----------------------------------------------------
         except Exception as inner_ex:
-            logging.warning(f"⚠️ No se pudo obtener el mensaje de error de la interfaz: {inner_ex}")
+            logging.info("--------------------------------")
+            logging.warning(f"⚠️ No se pudo obtener el mensaje de error de la interfaz")
+            logging.exception(inner_ex)
 
     except Exception as e:
 
         error = True
+        logging.info("--------------------------------")
         logging.warning(f"⚠️ Error funcional: {e}")
         msj_error = str(e)
 

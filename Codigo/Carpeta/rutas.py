@@ -105,8 +105,8 @@ def crear_carpeta_descargas(organizacion,ctx):
     # 📁 rutas
     carpeta_base = os.path.join(download_path, f"{prefijo}Jishu_Car")
     carpeta_empresa = os.path.join(carpeta_base, organizacion)
-    carpeta_solicitud = os.path.join(carpeta_empresa,ctx.solicitud.capitalize())
-    carpeta_unica = os.path.join(carpeta_solicitud, f"{ctx.id_cot}_{get_timestamp()}")
+    carpeta_movimientod = os.path.join(carpeta_empresa,ctx.movimiento.capitalize())
+    carpeta_unica = os.path.join(carpeta_movimientod, f"{ctx.id_cot}_{get_timestamp()}")
 
     # 🏗️ crear estructura completa
     os.makedirs(carpeta_unica, exist_ok=True)

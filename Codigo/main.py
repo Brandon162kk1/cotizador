@@ -90,97 +90,111 @@ class Vehiculo(BaseModel):
 
     def __init__(self, data: dict):
 
-        self.organizacion = data.get("ORGANIZACION") or ""
-        self.sede = data.get("SEDE")
-        self.plan = data.get("PLAN")
-
-        self.num_rodaje = data.get("NUM_RODAJE")
-        self.num_motor = data.get("NUM_MOTOR")
-        self.num_serie = data.get("NUM_SERIE")
-
-        self.modelo = data.get("MODELO_VEH")
-        self.tipo = data.get("TIPO_VEH")
-        self.clase = data.get("CLASE_VEH")
-
-        self.marca = data.get("MARC_VEH")
-
-        self.anio = safe_int(data.get("AÑO_FAB"))
-        self.valor = data.get("PRECIO")
-        self.uso = data.get("USO_VEHICULO")
-        self.gas = data.get("GAS")
-        self.ocupantes = data.get("ASIENTOS")
-
-        self.seguro = data.get("SOAT")
-        self.inspeccion = data.get("INSPECCION")
-
-        self.localizacion = data.get("LOCALIZACION_CARRO")
-        self.distrito_veh = data.get("DISTRITO_CARRO")
+        self.plan = data.get("plan")
+        self.num_rodaje = data.get("num_rodaje")
+        self.num_motor = data.get("num_motor")
+        self.num_serie = data.get("num_serie")
+        self.modelo = data.get("modelo")
+        self.tipo = data.get("tipo")
+        self.clase = data.get("clase")
+        self.marca = data.get("marca")
+        self.anio = safe_int(data.get("año"))
+        self.valor = data.get("precio")
+        self.uso = data.get("uso")
+        self.gas = data.get("gas")
+        self.ocupantes = data.get("asientos")
+        self.seguro = data.get("soat")
+        self.inspeccion = data.get("inspeccion")
+        self.localizacion = data.get("localizacion")
+        self.distrito = data.get("distrito")
 
     def __str__(self):
         return f"{self.modelo.upper()}|{self.marca.upper()}|{self.tipo}|{self.clase}"
 
-class Usuario(BaseModel):
+class Asesor(BaseModel):
 
     def __init__(self, data: dict):
 
-        self.usuario = data.get("USUARIO")
-        self.contrasena = data.get("CONTRASEÑA")
-        self.rol = data.get("ROL")
-        self.canal = data.get("CANAL")
-        self.asesor = data.get("ASESOR")
-        self.correo_asesor = data.get("CORREO_ASESOR")
-        self.vendedor = data.get("VENDEDOR")
-        self.dni = safe_int(data.get("DNI_VENDEDOR"))
-        self.celular = data.get("CEL_VENDEDOR")
+        self.nombre = data.get("asesor")
+        self.correo = data.get("correo_asesor")
+
+class Ejecutivo(BaseModel):
+
+    def __init__(self, data: dict):
+
+        self.nombre = data.get("ejecutivo")
+        self.celular = data.get("celular_ejecutivo")
+
+class Compania(BaseModel):
+
+    def __init__(self, data: dict):
+
+        self.usuario = data.get("usuario")
+        self.contrasena = data.get("password")
+
+class Organizacion(BaseModel):
+
+    def __init__(self, data: dict):
+
+        self.nombre = data.get("nom_organizacion")
+        self.sede = data.get("sede")
+        self.rol = "CANAL NO TRADICIONAL"
+        self.canal = data.get("canal")
 
 class Credito(BaseModel):
 
     def __init__(self, data: dict):
 
-        self.tiempo = data.get("TIEMPO_CREDITO")
-        self.cuotas = safe_int(data.get("CUOTAS"))
-        self.forma_pago = data.get("FORMA_PAGO")
+        self.tiempo = data.get("tiempo_credito")
+        self.cuotas = safe_int(data.get("cuotas"))
+        self.forma_pago = data.get("forma_pago")
 
 class Cliente(BaseModel):
 
     def __init__(self, data: dict):
 
-        self.cliente_nuevo = data.get("CLIENTE_NUEVO")
-        self.rz_social = data.get("RAZON_SOCIAL")
-        self.nombres = data.get("NOMBRES")
-        self.apellido_paterno = data.get("APE_PATERNO")
-        self.apellido_materno = data.get("APE_MATERNO")
-        self.tipo_persona = data.get("TIP_PERSONA")
-        self.tipo_doc = data.get("TIP_DOC")
-        self.num_doc = data.get("NUM_DOC")
-        fecha = data.get("FECHA_NAC")
+        self.cliente_nuevo = data.get("cliente_nuevo")
+        self.rz_social = data.get("razonsocial")
+        self.nombres = data.get("nombres")
+        self.apellido_paterno = data.get("paterno")
+        self.apellido_materno = data.get("materno")
+        self.tipo_persona = data.get("tipo_cliente")
+        self.tipo_doc = data.get("tipo_doc")
+        self.num_doc = data.get("num_doc")
+        fecha = data.get("fecha_nac")
         self.fecha_nac = datetime.strptime(fecha, "%d-%m-%Y").strftime("%d/%m/%Y") if fecha else None
-        self.sexo = data.get("SEXO")
-        self.estado_civil = data.get("ESTADO_CIVIL")
-        self.celular = data.get("CELULAR")
-        self.correo = data.get("CORREO")
-        self.tipo_via = data.get("TIPO_VIA")
-        self.nom_via = data.get("NOMBRE_VIA")
-        self.num_via = data.get("NUMERO_VIA")
+        self.sexo = data.get("sexo")
+        self.estado_civil = data.get("estado_civil")
+        self.celular = data.get("celular_cliente")
+        self.correo = data.get("correo_cliente")
+        self.tipo_via = data.get("tip_via")
+        self.nom_via = data.get("nom_via")
+        self.num_via = data.get("num_via")
 
 class CotizacionContexto:
 
     def __init__(self, data: dict):
 
         self.entorno = data.get("entorno")
-        self.solicitud = data.get("SOLICITUD")
-        self.id_cot = data.get("ID_COT")
-        self.usuario = Usuario(data)
+        self.movimiento = data.get("movimiento")
+        self.id_cot = data.get("id")
+        self.compania = Compania(data)
+        self.organizacion = Organizacion(data)
         self.vehiculo = Vehiculo(data)
         self.credito = Credito(data)
         self.cliente = Cliente(data)
+        self.asesor = Asesor(data)
+        self.ejecutivo = Ejecutivo(data)
 
     def __str__(self):
         return pformat({
-            "Usuario": self.usuario.to_dict(ocultar=["usuario","contrasena","dni","celular"]),
+            "Compania": self.compania.to_dict(ocultar=["usuario","contrasena"]),
+            "Organizacion": self.organizacion.to_dict(),
             "Vehículo": self.vehiculo.to_dict(ocultar=["num_rodaje","num_motor","num_serie"]),
             "Crédito": self.credito.to_dict(),
             "Cliente": self.cliente.to_dict(ocultar=["num_doc","celular","correo","rz_social"]),
+            "Asesor": self.asesor.to_dict(),
+            "Ejecutivo": self.ejecutivo.to_dict(ocultar=["dni","celular"])
         })
 
 # ------------------ USO ------------------
@@ -214,15 +228,15 @@ def main():
  
         user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
         user_input.clear()
-        user_input.send_keys(ctx.usuario.usuario)
+        user_input.send_keys(ctx.compania.usuario)
         logging.info("⌨️ Usuario digitando")
 
         time.sleep(1)
  
         pass_input = wait.until(EC.presence_of_element_located((By.ID, "CLAVE")))
         pass_input.clear()
-        pass_input.send_keys(ctx.usuario.contrasena)
-        logging.info(f"⌨️ Password '{ctx.usuario.contrasena}' digitado")
+        pass_input.send_keys(ctx.compania.contrasena)
+        logging.info(f"⌨️ Password digitado")
  
         ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
         driver.execute_script("arguments[0].click();", ingresar_btn)
@@ -322,17 +336,16 @@ def main():
         time.sleep(10)
         logging.info("------------------------------------")
         #----------------------------
-        interactuar_combo_por_name(driver, wait, "iderolcanal", "CANAL NO TRADICIONAL") # ctx.usuario.rol
-        logging.info(f"🖱️ Clic en ROL → 'CANAL NO TRADICIONAL'")
+        interactuar_combo_por_name(driver, wait, "iderolcanal",ctx.organizacion.rol.upper())
+        logging.info(f"🖱️ Clic en ROL → {ctx.organizacion.rol.upper()}")
         time.sleep(5)
         #----------------------------
-        interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
-        logging.info(f"🖱️ Clic en CANAL → {ctx.usuario.canal.upper()}")
+        interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
+        logging.info(f"🖱️ Clic en CANAL → {ctx.organizacion.canal.upper()}")
         time.sleep(3)
         #----------------------------
         click_fuera(driver)
         #----------------------------
-        #texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} - {'TAXI' if nom_empresa.upper() == 'DONGFENG' else 'TRANSPORTE DE PERSONAL'}"
         texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} TAXI"
         seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
         logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
@@ -372,7 +385,7 @@ def main():
                     time.sleep(3)
                     click_fuera(driver)
         else:
-            raise Exception("No se pudo cargar el formulario de Datos Particulares después de varios intentos.")
+            raise Exception("No se pudo cargar el formulario de Datos Particulares después de varios intentos")
         #----------------------------
         escribir_input_por_name(driver, wait, "txtplaca_de_rodaje",ctx.vehiculo.num_rodaje,False)
         time.sleep(1)
@@ -424,7 +437,6 @@ def main():
         #----------------------------
         if ctx.vehiculo.uso == 'PARTICULAR':
             escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
-            #escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",f"NATURAL",2)
             logging.info(f"🖱️ Opción seleccionada para Tipo de persona → '{ctx.cliente.tipo_persona}'")
             time.sleep(3)
             #----------------------------
@@ -432,10 +444,9 @@ def main():
             logging.info(f"🖱️ Opción seleccionada para el tiempo de crédito → '{ctx.credito.tiempo}'")
             time.sleep(3)
             #----------------------------
-            escribir_input_por_name(driver, wait, "txtvendedor",ctx.usuario.vendedor,False)
+            escribir_input_por_name(driver, wait, "txtvendedor",ctx.ejecutivo.nombre,False)
             time.sleep(1)
             #----------------------------
-            #localizacion = 'LIMA' if ctx.vehiculo.localizacion == 'LIMA' else 'PROVINCIAS'
             localizacion = 'LIMA' if ctx.vehiculo.localizacion in ('LIMA','CALLAO') else 'PROVINCIAS'
             escribir_y_enter_combo_por_name(driver,wait,"sellocalización",localizacion,2)
             logging.info(f"🖱️ Opción seleccionada en localización → '{localizacion}'")
@@ -600,31 +611,35 @@ def main():
 
         if es_juridica:
 
-            # valor_esperado_idptipotercero = "J" if es_juridica else "N"
             escribir_combo_extjs(wait,"idptipotercero","PERSONA JURÍDICA" if es_juridica else "PERSONA NATURAL",valor_esperado="J" if es_juridica else "N")
+
             time.sleep(2)
-
-            # dispatch_tipo_doc = {
-            #     "RUC": "1",
-            #     "DNI": "2",
-            #     "PASAPORTE": "3",
-            #     "C.E.": "4"
-            # }
-
-            # valor_esperado_idptipodocumento = dispatch_tipo_doc.get(ctx.cliente.tipo_doc.upper())
-
-            # if valor_esperado_idptipodocumento is None:
-            #     raise Exception(f"Tipo de documento '{ctx.cliente.tipo_doc}' no soportado en la compañía")
 
             escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc)
 
         time.sleep(5)
 
+        dispatch_tipo_doc = {
+            "RUC": "1",
+            "DNI": "2",
+            "PASAPORTE": "3",
+            "C.E.": "4"
+        }
+
+        if ctx.cliente.tipo_doc != 'DNI':
+
+            valor_esperado_idptipodocumento = dispatch_tipo_doc.get(ctx.cliente.tipo_doc.upper())
+
+            if valor_esperado_idptipodocumento is None:
+                raise Exception(f"Tipo de documento '{ctx.cliente.tipo_doc}' no soportado en la compañía")
+
+            escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc,valor_esperado=valor_esperado_idptipodocumento)
+
+            time.sleep(3)
+
         escribir_input_en_modal(driver,wait,"numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc,True)
-        #escribir_input_en_modal(driver,wait,"numerodoc",ctx.cliente.num_doc,True)
 
         time.sleep(3)
-        #-----------------------------------------------------------------------------------------------------
 
         click_boton_buscar_en_modal_extjs(driver)
 
@@ -632,7 +647,6 @@ def main():
         
         campo_nombre = wait.until(EC.presence_of_element_located((By.NAME, "nombre")))
 
-        #es_readonly = campo_nombre.get_attribute("readonly") is not None
         valor = campo_nombre.get_attribute("value").strip()
 
         if valor:
@@ -642,7 +656,8 @@ def main():
 
             if ctx.cliente.cliente_nuevo:
                 logging.warning("⚠️ El asesor marco que es cliente nuevo, pero ya existe en la BD de la compañía")
-            
+             
+            #--- Falta realizar pruebas ---
             if es_juridica:
 
                 set_valor_campo_extjs(driver, wait, "nomcompleto", ctx.cliente.rz_social)
@@ -786,8 +801,8 @@ def main():
             #----------------------------------------------------------------
             abrir_combo_en_fieldset(driver, "Direcciones", "idedistrito")
             time.sleep(1)
-            #----------------------------------------------------------------
-            seleccionar_combo_extjs(wait, ctx.vehiculo.distrito_veh)
+            #--- Ojo que aca deberia ir el distrito del cliente no de donde opera el vehiculo ---
+            seleccionar_combo_extjs(wait, ctx.vehiculo.distrito)
             time.sleep(1)
             #----------------------------------------------------------------
             abrir_combo_en_fieldset(driver, "Direcciones", "idptipovia")

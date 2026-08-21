@@ -64,8 +64,6 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
         "Copia": copias_lista,
         "Asunto": f"Error generando la {ctx.solicitud.capitalize()} en JishuCar",
         "Mensaje": html
-        #"imagen_nombre": f"Error_{ctx.id_cot}.png",
-        #"imagen_base64": imagenes[0] if imagenes else None
     }
 
     try:
@@ -84,11 +82,11 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
     logging.info("-----------------------------")
     logging.info(f"⌛ Enviando Notificación por WhatsApp")
 
-    # Intentar usar el celular del usuario (vendedor), y si no existe, usar el del cliente
-    celular = ctx.usuario.celular if ctx.usuario.celular else ctx.cliente.celular
+    # Intentar usar el celular del ejecutivo (vendedor), y si no existe, usar el del cliente
+    celular = ctx.ejecutivo.celular if ctx.ejecutivo.celular else ctx.cliente.celular
     
     if not celular or str(celular).strip().lower() == "none":
-        logging.error("⚠️ No se pudo enviar WhatsApp: Teléfono del vendedor y cliente no están definidos")
+        logging.error("⚠️ No se pudo enviar WhatsApp: Teléfono del ejecutivo y cliente no están definidos")
         return
 
     telefono = str(celular).strip()
@@ -105,8 +103,7 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
         motivo = msj_error if msj_error else "Problemas Técnicos del Agente"
         payload["mensaje"] = f"""Hubo problemas para realizar la cotización:
 📋 Registro: {ctx.id_cot}
-⚠️ Motivo: {motivo}
-        """
+⚠️ Motivo: {motivo}"""
 
     elif tipo == "documento":
 

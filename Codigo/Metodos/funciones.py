@@ -167,11 +167,11 @@ def interactuar_combo_por_name2(driver, wait, name_hidden, texto):
     )
 
     logging.info(
-        f"   Valor anterior: '{valor_anterior}'"
+        f"Valor anterior: '{valor_anterior}'"
     )
 
     logging.info(
-        f"   Valor nuevo: '{nuevo_valor}'"
+        f"Valor nuevo: '{nuevo_valor}'"
     )
 
 # --- Metodos Funcionan ---
@@ -192,7 +192,7 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
     input_visible.click()
     input_visible.send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
     input_visible.send_keys(texto)
-    logging.info("⌨️ Digitando texto")
+    logging.info(f"⌨️ Digitando texto {texto}")
 
     # 4. Esperar lista
     wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list')]")))
@@ -215,14 +215,14 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
         #logging.error("❌ ENTER no confirmó, usando PLAN B (clic directo)")
         raise Exception("Problemas técnicos, comunícate con el área de sistemas")
 
-    # 🧨 PLAN B — click directo en la opción
-    opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']")))
-    opcion.click()
-    logging.info("🖱️ Clic directo en opción")
+    # # 🧨 PLAN B — click directo en la opción
+    # opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']")))
+    # opcion.click()
+    # logging.info("🖱️ Clic directo en opción")
 
-    # 8. Validar nuevamente
-    wait.until(lambda d: hidden.get_attribute("value"))
-    logging.info(f"✅ Combo '{name_hidden}' confirmado por clic")
+    # # 8. Validar nuevamente
+    # wait.until(lambda d: hidden.get_attribute("value"))
+    # logging.info(f"✅ Combo '{name_hidden}' confirmado por clic")
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 
@@ -410,7 +410,7 @@ def resolver_empresa(ctx):
         'zual': 'Zual'
     }
 
-    org = (ctx.vehiculo.organizacion or "").lower()
+    org = (ctx.organizacion.nombre or "").lower()
 
     return next((v for k, v in dispatch.items() if k in org), 'Otro')
 

@@ -8,5 +8,6 @@ services:
 
 # Comando para activar entorno virtual: venv\Scripts\activate
 # Comando: docker build --no-cache -t cotizador .
+
 # Comando: docker compose build
 # Comando para crear una imagen base : docker build -f Dockerfile.base -t chromedriver:stable .

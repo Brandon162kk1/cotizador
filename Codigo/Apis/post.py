@@ -39,7 +39,7 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
     nombre_completo = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}"
 
     html = template.render(
-        titulo=f"⚠️ Problemas en la {ctx.solicitud.capitalize()} #{ctx.id_cot}",
+        titulo=f"⚠️ Problemas en la {ctx.movimiento.capitalize()} #{ctx.id_cot}",
         cliente=f"{nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social }",
         num_doc=ctx.cliente.num_doc,
         celular=ctx.cliente.celular,
@@ -62,7 +62,7 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
     payload = {
         "Para": para_lista,
         "Copia": copias_lista,
-        "Asunto": f"Error generando la {ctx.solicitud.capitalize()} en JishuCar",
+        "Asunto": f"Error generando la {ctx.movimiento.capitalize()} en JishuCar",
         "Mensaje": html
     }
 

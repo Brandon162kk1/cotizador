@@ -13,3 +13,6 @@ venv/
 # Ignorar directorios del IDE
 .vscode/
 .idea/
+
+# Otros directorios generados
+Downloads/

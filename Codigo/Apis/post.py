@@ -11,7 +11,6 @@ from jinja2 import Environment, FileSystemLoader
 load_dotenv("/app/variables.env")
 
 # --- Variables de Entorno ---
-#url_n8n_enviar_correo_general = os.getenv("url_n8n_enviar_correo_general")
 url_n8n_base = os.getenv("url_n8n_base")
 webhook_correo = os.getenv("webhook_correo")
 webhook_wsp = os.getenv("webhook_wsp")
@@ -32,41 +31,42 @@ def enviarCorreoGeneral(ruta_carpeta,ctx):
     logging.info("-----------------------------")
     logging.info(f"⌛ Enviando Correo al equipo Jishu")
 
-    template = env.get_template("plantilla.html")
-
-    imagenes = obtener_imagenes_error(ruta_carpeta)
-
-    nombre_completo = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}"
-
-    html = template.render(
-        titulo=f"⚠️ Problemas en la {ctx.movimiento.capitalize()} #{ctx.id_cot}",
-        cliente=f"{nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social }",
-        num_doc=ctx.cliente.num_doc,
-        celular=ctx.cliente.celular,
-        correo=ctx.cliente.correo,
-        uso=ctx.vehiculo.uso.capitalize(),
-        vehiculo=f"{ctx.vehiculo.modelo}|{ctx.vehiculo.marca.upper()}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}",
-        año=ctx.vehiculo.anio,
-        precio=f"{ctx.vehiculo.valor}",
-        gas='Si' if ctx.vehiculo.gas else 'No',
-        asientos=ctx.vehiculo.ocupantes,
-        soat='Si' if ctx.vehiculo.seguro else 'No',
-        inspeccion='Si' if ctx.vehiculo.inspeccion else 'No',
-        modalidad=f"{ctx.credito.forma_pago.capitalize()} en {ctx.credito.cuotas} { 'cuota' if ctx.credito.cuotas == 1 else ' cuotas'}",
-        screenshot = (
-            f"data:image/png;base64,{imagenes[0]}"
-            if imagenes else None
-        )
-    )
-
-    payload = {
-        "Para": para_lista,
-        "Copia": copias_lista,
-        "Asunto": f"Error generando la {ctx.movimiento.capitalize()} en JishuCar",
-        "Mensaje": html
-    }
-
     try:
+
+        template = env.get_template("plantilla.html")
+
+        imagenes = obtener_imagenes_error(ruta_carpeta)
+
+        nombre_completo = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}"
+
+        html = template.render(
+            titulo=f"⚠️ Problemas en la {ctx.movimiento.capitalize()} #{ctx.id_cot}",
+            cliente=f"{nombre_completo if ctx.cliente.tipo_persona == 'NATURAL' else ctx.cliente.rz_social }",
+            num_doc=ctx.cliente.num_doc,
+            celular=ctx.cliente.celular,
+            correo=ctx.cliente.correo,
+            uso=ctx.vehiculo.uso.capitalize(),
+            vehiculo=f"{ctx.vehiculo.modelo}|{ctx.vehiculo.marca.upper()}|{ctx.vehiculo.tipo}|{ctx.vehiculo.clase}",
+            año=ctx.vehiculo.anio,
+            precio=f"{ctx.vehiculo.valor}",
+            gas='Si' if ctx.vehiculo.gas else 'No',
+            asientos=ctx.vehiculo.ocupantes,
+            soat='Si' if ctx.vehiculo.seguro else 'No',
+            inspeccion='Si' if ctx.vehiculo.inspeccion else 'No',
+            modalidad=f"{ctx.credito.forma_pago.capitalize()} en {ctx.credito.cuotas} { 'cuota' if ctx.credito.cuotas == 1 else ' cuotas'}",
+            screenshot = (
+                f"data:image/png;base64,{imagenes[0]}"
+                if imagenes else None
+            )
+        )
+
+        payload = {
+            "Para": para_lista,
+            "Copia": copias_lista,
+            "Asunto": f"Error generando la {ctx.movimiento.capitalize()} en JishuCar",
+            "Mensaje": html
+        }
+
         response = requests.post(url_n8n_correo,json=payload,timeout=30)
 
         if response.status_code in (200, 201, 204):

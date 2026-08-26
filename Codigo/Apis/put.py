@@ -1,9 +1,9 @@
 ﻿import requests
 import logging
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv("/app/variables.env")
+#load_dotenv("/app/variables.env")
 
 # --- Variables de Entorno ---
 API_KEY_JC = os.getenv("API_KEY_JC")

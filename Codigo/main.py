@@ -538,7 +538,7 @@ def main():
             logging.info("✅ Carga finalizada")
             #----------------------------
             tomar_capturar(driver,ruta_carpeta,f"despuesDESCUENTO{ctx.id_cot}")
-            input("Esperar")
+            raise Exception("Se aplico descuento del 5% , verificar")
 
         time.sleep(5)
         #----------------------------

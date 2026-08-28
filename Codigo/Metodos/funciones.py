@@ -38,10 +38,10 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
     # 6. Intento normal: ↓ + ENTER
     #input_visible.send_keys(Keys.ARROW_DOWN)
-    logging.info("no hace flecha hacia abajo")
+    #logging.info("no hace flecha hacia abajo")
     time.sleep(2)
     input_visible.send_keys(Keys.ENTER)
-    logging.info("↵ Enter enviado")
+    logging.info("⌨️ Enter enviado")
 
     # 7. Validar hidden (espera corta)
     try:

@@ -67,5 +67,5 @@ def abrirDriver(ruta):
         raise
 
     # Espera hasta que cargue el driver
-    wait = WebDriverWait(driver,120)
+    wait = WebDriverWait(driver,180)
     return driver, wait    

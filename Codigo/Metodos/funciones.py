@@ -10,170 +10,6 @@ from selenium.common.exceptions import TimeoutException
 import logging
 import time
 
-def interactuar_combo_por_name2(driver, wait, name_hidden, texto):
-
-    wait.until(
-        EC.invisibility_of_element_located(
-            (By.CSS_SELECTOR, "div.ext-el-mask")
-        )
-    )
-
-    # 1. Hidden
-    hidden = wait.until(
-        EC.presence_of_element_located(
-            (By.NAME, name_hidden)
-        )
-    )
-
-    # Guardar valor anterior
-    valor_anterior = hidden.get_attribute("value")
-
-    logging.info(
-        f"🔎 Combo '{name_hidden}' - valor anterior: '{valor_anterior}'"
-    )
-
-    # 2. Contenedor
-    contenedor = hidden.find_element(
-        By.XPATH,
-        "./ancestor::div[contains(@class,'x-form-field-wrap')]"
-    )
-
-    # 3. Input visible
-    input_visible = contenedor.find_element(
-        By.XPATH,
-        ".//input[contains(@class,'x-form-field') and not(@type='hidden')]"
-    )
-
-    driver.execute_script(
-        "arguments[0].scrollIntoView({block:'center'});",
-        input_visible
-    )
-
-    input_visible.click()
-
-    input_visible.send_keys(
-        Keys.CONTROL,
-        "a"
-    )
-
-    input_visible.send_keys(
-        Keys.BACKSPACE
-    )
-
-    input_visible.send_keys(texto)
-
-    logging.info(
-        f"⌨️ Digitando '{texto}' en '{name_hidden}'"
-    )
-
-    # 4. Esperar lista
-    wait.until(
-        EC.visibility_of_element_located((
-            By.XPATH,
-            "//div[contains(@class,'x-combo-list') "
-            "and not(contains(@style,'display: none'))]"
-        ))
-    )
-
-    # 5. IMPORTANTE:
-    # ExtJS puede recrear el input
-    input_visible = contenedor.find_element(
-        By.XPATH,
-        ".//input[contains(@class,'x-form-field') and not(@type='hidden')]"
-    )
-
-    # 6. ENTER
-    input_visible.send_keys(Keys.ARROW_DOWN)
-    input_visible.send_keys(Keys.ENTER)
-
-    logging.info(
-        f"↵ ENTER enviado para '{texto}'"
-    )
-
-    # 7. Esperar que REALMENTE cambie el hidden
-    try:
-
-        wait.until(
-            lambda d:
-                d.find_element(By.NAME, name_hidden)
-                .get_attribute("value") != valor_anterior
-        )
-
-        nuevo_valor = hidden.get_attribute("value")
-
-        logging.info(
-            f"✅ Combo '{name_hidden}' confirmado con ENTER"
-        )
-
-        logging.info(
-            f"   Valor anterior: '{valor_anterior}'"
-        )
-
-        logging.info(
-            f"   Valor nuevo: '{nuevo_valor}'"
-        )
-
-        return
-
-    except TimeoutException:
-
-        logging.warning(
-            f"⚠️ ENTER no confirmó '{texto}'"
-        )
-
-    # ==================================================
-    # PLAN B - CLIC DIRECTO
-    # ==================================================
-
-    logging.info(
-        f"🔄 Intentando seleccionar '{texto}' mediante clic"
-    )
-
-    opcion = wait.until(
-        EC.element_to_be_clickable((
-            By.XPATH,
-            f"""
-            //div[
-                contains(@class,'x-combo-list')
-                and not(contains(@style,'display: none'))
-            ]
-            //div[
-                contains(@class,'x-combo-list-item')
-                and normalize-space()='{texto}'
-            ]
-            """
-        ))
-    )
-
-    opcion.click()
-
-    logging.info(
-        f"🖱️ Clic directo en '{texto}'"
-    )
-
-    # 8. Esperar cambio REAL
-    wait.until(
-        lambda d:
-            d.find_element(By.NAME, name_hidden)
-            .get_attribute("value") != valor_anterior
-    )
-
-    nuevo_valor = hidden.get_attribute("value")
-
-    logging.info(
-        f"✅ Combo '{name_hidden}' confirmado por clic"
-    )
-
-    logging.info(
-        f"Valor anterior: '{valor_anterior}'"
-    )
-
-    logging.info(
-        f"Valor nuevo: '{nuevo_valor}'"
-    )
-
-# --- Metodos Funcionan ---
-
 # -- Este name tiene que se tal cual el nombre de las opciones del combo, sino no funciona
 def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
@@ -357,7 +193,7 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     logging.info(f"✅ Combo '{name_hidden}' confirmado")
 
-def ingresar_fecha_extjs(driver, wait, name, fecha_ddmmyyyy,texto):
+def ingresar_fecha_extjs(wait, name, fecha_ddmmyyyy,texto):
 
     # 1️⃣ Esperar input por NAME (no por ID)
     input_fecha = wait.until(EC.element_to_be_clickable((By.NAME, name)))
@@ -373,28 +209,31 @@ def ingresar_fecha_extjs(driver, wait, name, fecha_ddmmyyyy,texto):
 
     logging.info(f"✅ {texto} ingresada : {fecha_ddmmyyyy}")
 
-def seleccionar_modelo_extjs(driver,wait,texto_busqueda,texto_opcion,name_hidden="selmodelodevehiculo"):
+def seleccionar_modelo_extjs(wait,texto_busqueda,texto_opcion,name_hidden="selmodelodevehiculo"):
 
-    # 1️⃣ Esperar que no haya máscara
+    # Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
 
-    # 2️⃣ Hidden REAL
+    # Hidden REAL
     hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
 
-    # 3️⃣ Input visible CORRECTO (anclado al hidden)
+    # Input visible CORRECTO (anclado al hidden)
     input_visible = hidden.find_element(By.XPATH,"./ancestor::div[contains(@class,'x-form-field-wrap')]//input[@type='text']")
     input_visible.click()
     input_visible.clear()
     input_visible.send_keys(texto_busqueda)
-    # 4️⃣ Esperar lista
+    # 4Esperar lista
     wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list-inner')]")))
 
-    # 5️⃣ click EXACTO en la opción
-    opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']")))
-    opcion.click()
-    logging.info(f"✅ Opción '{texto_opcion}' seleccionada")
+    # Clic en la opción
+    try:
+        opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']")))
+        opcion.click()
+        logging.info(f"✅ Opción '{texto_opcion}' seleccionada")
+    except Exception as e:
+        raise Exception(f"Vehículo '{texto_opcion}' no registrado en Rimac")
 
-    # 6️⃣ Validar ID numérico
+    # Validar ID numérico
     wait.until(lambda d: hidden.get_attribute("value").isdigit())
 
     logging.info(f"✅ Modelo seleccionado correctamente | ID={hidden.get_attribute('value')}")
@@ -443,7 +282,7 @@ def click_agregar_cliente_extjs(driver):
     btn.handler.call(btn.scope || btn);
     """)
 
-def obtener_titulo_modal_extjs(driver, wait, timeout=10):
+def obtener_titulo_modal_extjs(wait):
 
     try:
         #modal = WebDriverWait(driver, timeout).until(
@@ -896,3 +735,104 @@ def escribir_combo_extjs(wait, name_hidden, texto, valor_esperado=None):
     #         )
 
     # logging.info(f"✅ Combo '{name_hidden}' seleccionado: {texto}")
+
+# -- Revisar estos metodos mas adelante --
+
+# set_valor_campo_extjs(driver, wait, "nomcompleto", ctx.cliente.rz_social)
+# time.sleep(1)
+# set_valor_campo_extjs(driver, wait, "nomcompletocomercial", ctx.cliente.rz_social)
+# time.sleep(1)
+# driver.execute_script("""
+# var win = Ext.WindowMgr.getActive();
+
+# var campo = win.find("name", "fecfundacion")[0];
+
+# campo.setValue(arguments[0]);
+# campo.fireEvent('change', campo, arguments[0]);
+# """, ctx.cliente.fecha_nac)
+# logging.info(f"✅ Fecha Fundación = '{ctx.cliente.fecha_nac}'")
+# time.sleep(1)
+
+def seleccionar_ciiu(driver, wait, codigoActv):
+
+    hidden = wait.until(EC.presence_of_element_located((By.NAME, "dscacteconomica")))
+    logging.info(" Perfecto 1")
+
+    contenedor = hidden.find_element(By.XPATH,"./ancestor::div[contains(@class,'x-form-field-wrap')]")
+    logging.info(" Perfecto 2")
+
+    lupa = contenedor.find_element(By.CSS_SELECTOR,"img.x-form-search-trigger")
+    logging.info(" Perfecto 3")
+
+    ActionChains(driver).move_to_element(lupa).click().perform()
+    logging.info(" Perfecto 4")
+
+    wait.until(EC.visibility_of_element_located((By.XPATH,"//span[contains(.,'Buscar CIIU')]")))
+    logging.info(" Perfecto 5")
+
+    codigo = wait.until(EC.element_to_be_clickable((By.NAME, "codigociiu")))
+    logging.info(" Perfecto 6")
+    codigo.clear()
+    logging.info(" Perfecto 7")
+    codigo.send_keys(codigoActv)
+    logging.info(" Perfecto 8")
+
+    click_boton_buscar_en_modal_extjs(driver)
+    logging.info(" Perfecto 9")
+
+    # Mas robusto
+    # fila = wait.until(
+    #     EC.element_to_be_clickable((
+    #         By.XPATH,
+    #         f"//div[contains(@class,'x-grid3-body')]"
+    #         f"//tr[.//div[normalize-space()='{codigoActv}']]"
+    #     ))
+    # )
+
+    fila = wait.until(
+        EC.element_to_be_clickable((
+            By.XPATH,
+            f"//div[contains(@class,'x-grid3-body')]"
+            f"//tr[td[4]//div[normalize-space()='{codigoActv}']]"
+        ))
+    )
+
+    logging.info(" Perfecto 10")
+    try:
+        fila.click()
+        logging.info(" Perfecto 11")
+    except:
+        ActionChains(driver).double_click(fila).perform()
+        logging.info(" Perfecto 12")
+                    
+    def click_boton_seleccionar_en_modal_extjs(wait,driver):
+
+        wait.until(
+            lambda d: d.execute_script("return typeof Ext!='undefined'")
+        )
+
+        driver.execute_script("""
+        var win = Ext.WindowMgr.getActive();
+
+        if(!win)
+            throw "No hay modal";
+
+        var botones = win.el.dom.querySelectorAll("button.tb-view");
+
+        for(var i=0;i<botones.length;i++){
+
+            if(botones[i].offsetParent!==null){
+                botones[i].click();
+                return;
+            }
+        }
+
+        throw "No se encontró el botón Seleccionar";
+        """)
+
+    click_boton_seleccionar_en_modal_extjs(wait,driver)
+    logging.info(" Perfecto 13")
+
+#seleccionar_ciiu(driver, wait, "5610")
+# escribir_combo_extjs(wait,"dscacteconomica","Actividades de restaurantes y de servicio móvil de comidas")
+time.sleep(1)

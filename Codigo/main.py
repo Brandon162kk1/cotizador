@@ -385,7 +385,7 @@ def main():
                 # Esperamos un momento a que renderice ExtJS y buscamos el elemento txtplaca_de_rodaje
                 time.sleep(3)
                 wait.until(EC.presence_of_element_located((By.NAME, "txtplaca_de_rodaje")))
-                logging.info("👁️ Campo 'txtplaca_de_rodaje' detectado con éxito")
+                #logging.info("👁️ Campo 'txtplaca_de_rodaje' detectado con éxito")
                 break
             except (TimeoutException, Exception) as e:
                 logging.warning(f"⚠️ El campo de la placa no apareció en el intento {intento_gen}. Reintentando...")
@@ -420,7 +420,7 @@ def main():
         clase = limpiar(ctx.vehiculo.clase)
         texto_busqueda = modelo
         texto_opcion = f"{modelo}|{marca}|{tipo}|{clase}"
-        seleccionar_modelo_extjs(driver,wait,texto_busqueda=texto_busqueda,texto_opcion=texto_opcion)
+        seleccionar_modelo_extjs(wait,texto_busqueda=texto_busqueda,texto_opcion=texto_opcion)
         time.sleep(3)
         #----------------------------
         escribir_input_por_name(driver, wait, "txtweb_anos_de_fabricacion",ctx.vehiculo.anio,False)
@@ -584,7 +584,7 @@ def main():
         time.sleep(3)
         #----------------------------
         fecha_ddmmyyyy = (datetime.strptime(get_pos_fecha_dmy(), "%d/%m/%Y") + timedelta(days=7)).strftime("%d/%m/%Y")
-        ingresar_fecha_extjs(driver,wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy,texto=f"Fecha primer vencimiento")
+        ingresar_fecha_extjs(wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy,texto=f"Fecha primer vencimiento")
         time.sleep(3)
         #----------------------------
         click_fuera(driver)
@@ -615,7 +615,7 @@ def main():
         click_agregar_cliente_extjs(driver)
         logging.info("🖱️ Clic en 'Agregar'")
         #----------------------------
-        titulo_modal = obtener_titulo_modal_extjs(driver, wait)
+        titulo_modal = obtener_titulo_modal_extjs(wait)
 
         if titulo_modal is None:
             raise Exception("No apareció modal para registrar cliente")
@@ -670,114 +670,10 @@ def main():
             logging.info("✅ El sistema autocompletó los datos")
         else:
             logging.info("⚠️ El sistema no completó los datos. Se llenarán manualmente")
-
-            if ctx.cliente.cliente_nuevo:
-                logging.warning("⚠️ El asesor marco que es cliente nuevo, pero ya existe en la BD de la compañía")
-             
+      
             #--- Falta realizar pruebas ---
             if es_juridica:
-
-                set_valor_campo_extjs(driver, wait, "nomcompleto", ctx.cliente.rz_social)
-                time.sleep(1)
-                set_valor_campo_extjs(driver, wait, "nomcompletocomercial", ctx.cliente.rz_social)
-                time.sleep(1)
-                driver.execute_script("""
-                var win = Ext.WindowMgr.getActive();
-
-                var campo = win.find("name", "fecfundacion")[0];
-
-                campo.setValue(arguments[0]);
-                campo.fireEvent('change', campo, arguments[0]);
-                """, ctx.cliente.fecha_nac)
-                logging.info(f"✅ Fecha Fundación = '{ctx.cliente.fecha_nac}'")
-                time.sleep(1)
-
-                def seleccionar_ciiu(driver, wait, codigoActv):
-
-                    hidden = wait.until(EC.presence_of_element_located((By.NAME, "dscacteconomica")))
-                    logging.info(" Perfecto 1")
-
-                    contenedor = hidden.find_element(By.XPATH,"./ancestor::div[contains(@class,'x-form-field-wrap')]")
-                    logging.info(" Perfecto 2")
-
-                    lupa = contenedor.find_element(By.CSS_SELECTOR,"img.x-form-search-trigger")
-                    logging.info(" Perfecto 3")
-
-                    ActionChains(driver).move_to_element(lupa).click().perform()
-                    logging.info(" Perfecto 4")
-
-                    wait.until(EC.visibility_of_element_located((By.XPATH,"//span[contains(.,'Buscar CIIU')]")))
-                    logging.info(" Perfecto 5")
-
-                    codigo = wait.until(EC.element_to_be_clickable((By.NAME, "codigociiu")))
-                    logging.info(" Perfecto 6")
-                    codigo.clear()
-                    logging.info(" Perfecto 7")
-                    codigo.send_keys(codigoActv)
-                    logging.info(" Perfecto 8")
-
-                    click_boton_buscar_en_modal_extjs(driver)
-                    logging.info(" Perfecto 9")
-
-                    # Mas robusto
-                    # fila = wait.until(
-                    #     EC.element_to_be_clickable((
-                    #         By.XPATH,
-                    #         f"//div[contains(@class,'x-grid3-body')]"
-                    #         f"//tr[.//div[normalize-space()='{codigoActv}']]"
-                    #     ))
-                    # )
-
-                    fila = wait.until(
-                        EC.element_to_be_clickable((
-                            By.XPATH,
-                            f"//div[contains(@class,'x-grid3-body')]"
-                            f"//tr[td[4]//div[normalize-space()='{codigoActv}']]"
-                        ))
-                    )
-
-                    logging.info(" Perfecto 10")
-                    try:
-                        fila.click()
-                        logging.info(" Perfecto 11")
-                    except:
-                        ActionChains(driver).double_click(fila).perform()
-                        logging.info(" Perfecto 12")
-                    
-                    def click_boton_seleccionar_en_modal_extjs(wait,driver):
-
-                        wait.until(
-                            lambda d: d.execute_script("return typeof Ext!='undefined'")
-                        )
-
-                        driver.execute_script("""
-                        var win = Ext.WindowMgr.getActive();
-
-                        if(!win)
-                            throw "No hay modal";
-
-                        var botones = win.el.dom.querySelectorAll("button.tb-view");
-
-                        for(var i=0;i<botones.length;i++){
-
-                            if(botones[i].offsetParent!==null){
-                                botones[i].click();
-                                return;
-                            }
-                        }
-
-                        throw "No se encontró el botón Seleccionar";
-                        """)
-
-                    click_boton_seleccionar_en_modal_extjs(wait,driver)
-                    logging.info(" Perfecto 13")
-
-                seleccionar_ciiu(driver, wait, "5610")
-                # escribir_combo_extjs(wait,"dscacteconomica","Actividades de restaurantes y de servicio móvil de comidas")
-                time.sleep(1)
-
-                input("Esperar")
-
+                raise Exception("No se pudo autocompletar los datos de la empresa")
             else:
 
                 set_valor_campo_extjs(driver, wait, "nombre", ctx.cliente.nombres)

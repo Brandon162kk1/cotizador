@@ -1,8 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 # -- Froms ---
-#from xml.etree.ElementTree import C14NWriterTarget
 from selenium.webdriver.common.action_chains import ActionChains
-#from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -175,6 +173,8 @@ def interactuar_combo_por_name2(driver, wait, name_hidden, texto):
     )
 
 # --- Metodos Funcionan ---
+
+# -- Este name tiene que se tal cual el nombre de las opciones del combo, sino no funciona
 def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
@@ -201,8 +201,9 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
     input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
 
     # 6. Intento normal: ↓ + ENTER
-    input_visible.send_keys(Keys.ARROW_DOWN)
-    time.sleep(1)
+    #input_visible.send_keys(Keys.ARROW_DOWN)
+    logging.info("no hace flecha hacia abajo")
+    time.sleep(2)
     input_visible.send_keys(Keys.ENTER)
     logging.info("↵ Enter enviado")
 
@@ -226,28 +227,20 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 
-    # 🔥 1. Esperar que no haya máscara
+    # Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
-    # 🔥 2. Ubicar hidden (base correcta)
+    # Ubicar hidden (base correcta)
     hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
 
-    # 🔥 3. Subir SOLO al contenedor correcto
+    # Subir SOLO al contenedor correcto
     contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-element')]")
 
-    # 🔥 4. Buscar flecha dentro del mismo bloque
+    # Buscar flecha dentro del mismo bloque
     flecha = contenedor.find_element(By.XPATH, ".//img[contains(@class,'x-form-arrow-trigger')]")
 
-    # 🔥 5. click REAL (no JS)
+    # Click REAL (no JS)
     ActionChains(driver).move_to_element(flecha).click().perform()
-    #logging.info("🖱️ Clic en flecha del combo")
-
-    # 🔥 6. Esperar lista visible real (CLAVE)
-    # opcion = wait.until(EC.element_to_be_clickable((
-    #     By.XPATH,
-    #     f"//div[contains(@class,'x-combo-list') and not(contains(@style,'display: none'))]"
-    #     f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto_opcion}']"
-    # )))
 
     try:
         opcion = wait.until(EC.element_to_be_clickable((
@@ -259,19 +252,22 @@ def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
         logging.exception(e)
         raise Exception(f"Plan '{texto_opcion}' no configurado en Rimac")
 
-    opcion.click()
-    #logging.info("✅ Opción seleccionada")
+    try:
+        opcion.click()
+        logging.info("✅ Opción seleccionada")
+    except:
+        raise Exception(f"No se pudo seleccionar la opción '{texto_opcion}'")
 
-    # 🔥 7. Esperar procesamiento
+    # Esperar procesamiento
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
     #valor_anterior = hidden.get_attribute("value")
 
-    # 🔥 8. Validar que el hidden cambió
+    # Validar que el hidden cambió
     wait.until(lambda d: hidden.get_attribute("value") != "")
     ##ait.until(lambda d: hidden.get_attribute("value") != valor_anterior)
 
-    logging.info(f"🎯 Combo '{name_hidden}' confirmado")
+    logging.info(f"✅ Combo '{name_hidden}' confirmado")
 
 def click_fuera(driver):
 

@@ -346,13 +346,30 @@ def main():
         #----------------------------
         click_fuera(driver)
         #----------------------------
-        texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} TAXI"
+        if nom_empresa.upper() == "ZUAL":
+            canal_base =  ctx.organizacion.canal.upper()
+        elif nom_empresa.upper() == "DONGFENG":
+            canal_base = "CANAL DONGFENG"
+        elif nom_empresa.upper() == "PANGU":
+            canal_base = "CANAL PANGU"
+        else:
+            canal_base = f"CANAL {nom_empresa.strip().upper()}"
+
+        # Construir búsqueda según el plan
+        if ctx.vehiculo.plan.upper() == "PARTICULAR":
+            texto_base = f"{canal_base} TR"
+        else:
+            texto_base = f"{canal_base} TAXI"
+
+        logging.info(f"🔎 Buscando canal: '{texto_base}'")
+
+        #texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} TAXI"
         seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
-        logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
+        #logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
+        logging.info(f"🖱️ Clic en PLAN → {texto_base}")
         time.sleep(3)
         #----------------------------
         click_fuera(driver)
-        #----------------------------
         #----------------------------
         max_intentos_generar = 3
         for intento_gen in range(1, max_intentos_generar + 1):

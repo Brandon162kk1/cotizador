@@ -21,6 +21,7 @@ def enviar_documento(id_movimiento, ruta_pdf,documento):
     logging.info(f"⌛ Enviando Cotizacion al movimiento → {id_movimiento}")
 
     url = f"{API_BASE_URL_JC}/api/CotizacionApi/{id_movimiento}/{documento}"
+    #url = f"{API_BASE_URL_JC}/api/CotizacionApi/{id_movimiento}/{documento}/rimac"
 
     try:
         with open(ruta_pdf, "rb") as f:

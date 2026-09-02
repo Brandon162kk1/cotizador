@@ -845,8 +845,6 @@ def main():
 
                 time.sleep(5)
 
-                input("Esperar")
-
                 click_boton_ventana(driver,wait,"Validación de tercero","Cargar datos",ctx)
             
             #-------------------------------------------------------------

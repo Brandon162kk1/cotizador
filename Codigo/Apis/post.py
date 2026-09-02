@@ -12,6 +12,12 @@ from jinja2 import Environment, FileSystemLoader
 
 # --- Variables de Entorno ---
 url_n8n_base = os.getenv("url_n8n_base")
+
+puerto_n8n = os.getenv("puerto_n8n")
+
+if puerto_n8n:
+   url_n8n_base = f"{url_n8n_base}:{puerto_n8n}"
+
 webhook_correo = os.getenv("webhook_correo")
 webhook_wsp = os.getenv("webhook_wsp")
 

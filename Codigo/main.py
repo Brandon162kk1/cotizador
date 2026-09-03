@@ -29,7 +29,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # --- Json desde variable de entorno ---
 data = json.loads(os.getenv("DATA", "{}"))
-
+entorno = os.getenv("entorno","false").strip().lower() == "true"
 url_api_cod_cot = os.getenv("url_api_cod_cot")
 API_KEY = os.getenv("API_KEY_RIMAC_SAS")
 URL_SAS = os.getenv("urlRimacSAS")
@@ -175,7 +175,7 @@ class CotizacionContexto:
 
     def __init__(self, data: dict):
 
-        self.entorno = data.get("entorno")
+        #self.entorno = data.get("entorno")
         self.movimiento = data.get("movimiento")
         self.id_cot = data.get("id")
         self.compania = Compania(data)
@@ -211,7 +211,7 @@ def main():
 
     nom_empresa = resolver_empresa(ctx)
 
-    ruta_carpeta = crear_carpeta_descargas(nom_empresa,ctx)
+    ruta_carpeta = crear_carpeta_descargas(nom_empresa,ctx,entorno)
 
     try:
 
@@ -223,7 +223,7 @@ def main():
         driver.get(URL_SAS)
         logging.info("🔐 Iniciando sesión en RIMAC SAS")
 
-        if not ctx.entorno:
+        if not entorno:
             logging.info(ctx)
  
         user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
@@ -998,11 +998,10 @@ def main():
 
     finally:
 
-        #if ctx.entorno:
         if error:
             #actualizar_estado_movimiento(ctx.id_cot,msj_error)
             tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-            if ctx.entorno:
+            if entorno:
                 enviarCorreoGeneral(ruta_carpeta,ctx)
                 enviar_x_wsp(ctx,msj_error,"notificacion",None)
             renombrar_carpeta(ruta_carpeta)
@@ -1012,11 +1011,11 @@ def main():
         
         if cotizacion:
             archivo = os.path.join(ruta_carpeta,f"cot_{ctx.id_cot}.pdf")
-            if ctx.entorno:
+            if entorno:
                 enviar_documento(ctx.id_cot,archivo,"cotizacion")
                 enviar_x_wsp(ctx,None,"documento",archivo)
 
-        # if poliza and ctx.entorno:
+        # if poliza and entorno:
         #     archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
         #     logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
         #     enviar_documento(ctx.id_cot,archivo,"poliza")

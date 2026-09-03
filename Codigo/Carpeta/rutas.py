@@ -89,7 +89,7 @@ def renombrar_carpeta(ruta_carpeta):
     #Actualizarla
     ruta_carpeta = nueva_ruta
 
-def crear_carpeta_descargas(organizacion,ctx):
+def crear_carpeta_descargas(organizacion,ctx,entorno):
 
     # --- 👇 CREAR UN BUFFER NUEVO POR CADA CORREO ---
     log_buffer = StringIO()
@@ -100,7 +100,7 @@ def crear_carpeta_descargas(organizacion,ctx):
         force=True
     )
 
-    prefijo = "PRUEBAS_" if not ctx.entorno else ""
+    prefijo = "PRUEBAS_" if not entorno else ""
 
     # 📁 rutas
     carpeta_base = os.path.join(download_path, f"{prefijo}Jishu_Car")

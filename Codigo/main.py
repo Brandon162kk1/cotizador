@@ -266,9 +266,19 @@ def main():
         token_input.send_keys(codigo)
         logging.info(f"⌨️ Digitando {codigo} correctamente en 'TOKEN'")
 
-        ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
-        driver.execute_script("arguments[0].click();", ingresar_btn2)
-        logging.info("🖱️ Clic en 'Ingresar'")
+        try:
+            logging.info("🔎 Buscando botón 'Ingresar'...")
+            ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
+            logging.info("✅ Botón 'Ingresar' encontrado")
+            try:
+                driver.execute_script("arguments[0].click();", ingresar_btn2)
+                logging.info("🖱️ Clic en 'Ingresar' con JS")
+            except:
+                ingresar_btn2.click()
+                logging.info("🖱️ Clic en 'Ingresar'")
+        except Exception as e:
+            logging.exception(e)
+            raise Exception("Hay otro usuario iniciando sessión")
 
         XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
         max_intentos = 3

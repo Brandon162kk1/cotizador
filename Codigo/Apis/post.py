@@ -107,7 +107,7 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
 
     if tipo == "notificacion":
         motivo = msj_error if msj_error else "Problemas Técnicos del Agente"
-        payload["mensaje"] = f"""Hubo problemas para realizar la cotización:
+        payload["mensaje"] = f"""Hubo problemas para realizar la cotización en Rimac:
 📋 Registro: {ctx.id_cot}
 ⚠️ Motivo: {motivo}"""
 
@@ -129,7 +129,7 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
             payload["nombreArchivo"] = os.path.basename(archivo)
             payload["mimetype"] = "application/pdf"
 
-            payload["mensaje"] = f"""📋 Adjunto cotización del registro {ctx.id_cot}."""
+            payload["mensaje"] = f"""📋 Adjunto cotización de Rimac del registro {ctx.id_cot}."""
 
         except Exception as e:
             logging.error(f"❌ Error convirtiendo PDF a Base64: {e}")

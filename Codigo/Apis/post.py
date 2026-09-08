@@ -97,7 +97,7 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
         telefono = "51" + telefono
 
     payload = {
-        "isntancia": f"{os.getenv('instancia')}",
+        "instancia": f"{os.getenv('instancia')}",
         "telefono": telefono
     }
 

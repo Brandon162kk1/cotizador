@@ -97,12 +97,13 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
         telefono = "51" + telefono
 
     payload = {
-        "tipo": tipo,
-        "telefono": telefono,
+        "isntancia": f"{os.getenv('instancia')}",
+        "telefono": telefono
     }
 
     if tipo == "notificacion":
         motivo = msj_error if msj_error else "Problemas Técnicos del Agente"
+        payload["tipo"] = f"sendText"
         payload["mensaje"] = f"""Hubo problemas para realizar la cotización en Rimac:
 📋 Registro: {ctx.id_cot}
 ⚠️ Motivo: {motivo}"""
@@ -124,6 +125,7 @@ def enviar_x_wsp(ctx,msj_error,tipo,archivo):
             payload["archivo"] = archivo_base64
             payload["nombreArchivo"] = os.path.basename(archivo)
             payload["mimetype"] = "application/pdf"
+            payload["tipo"] = f"sendMedia"
 
             payload["mensaje"] = f"""📋 Adjunto cotización de Rimac del registro {ctx.id_cot}."""
 

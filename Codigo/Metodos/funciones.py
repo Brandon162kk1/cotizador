@@ -231,23 +231,12 @@ def seleccionar_modelo_extjs(wait,texto_busqueda,texto_opcion,name_hidden="selmo
         opcion.click()
         logging.info(f"✅ Opción '{texto_opcion}' seleccionada")
     except Exception as e:
-        raise Exception(f"Vehículo '{texto_opcion}' no registrado en Rimac")
+        raise Exception(f"Vehículo '{texto_opcion}' no registrado en Rímac")
 
     # Validar ID numérico
     wait.until(lambda d: hidden.get_attribute("value").isdigit())
 
     logging.info(f"✅ Modelo seleccionado correctamente | ID={hidden.get_attribute('value')}")
-
-def resolver_empresa(ctx):
-    dispatch = {
-        'dongfeng': 'Dongfeng',
-        'pangu': 'Pangu',
-        'zual': 'Zual'
-    }
-
-    org = (ctx.organizacion.nombre or "").lower()
-
-    return next((v for k, v in dispatch.items() if k in org), 'Otro')
 
 def limpiar(texto):
    return (texto or "").strip().upper()

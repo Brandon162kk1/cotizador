@@ -3,12 +3,8 @@ import logging
 import os
 import base64
 
-#from dotenv import load_dotenv
-#from textwrap import dedent
 from Carpeta.rutas import obtener_imagenes_error
 from jinja2 import Environment, FileSystemLoader
-
-#load_dotenv("/app/variables.env")
 
 # --- Variables de Entorno ---
 url_n8n_base = os.getenv("url_n8n_base")

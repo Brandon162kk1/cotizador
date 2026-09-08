@@ -12,7 +12,7 @@ from Apis.post import enviarCorreoGeneral,enviar_x_wsp
 from Apis.get import codigo_compania
 from Chrome.driver import tomar_capturar,abrirDriver
 from Carpeta.rutas import esperar_archivos_nuevos,crear_carpeta_descargas,renombrar_carpeta
-from Metodos.funciones import resolver_empresa,interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
+from Metodos.funciones import interactuar_combo_por_name,click_fuera,seleccionar_combo_por_flecha,escribir_input_por_name,limpiar,seleccionar_modelo_extjs
 from Metodos.funciones import escribir_y_enter_combo_por_name,ingresar_fecha_extjs,click_agregar_cliente_extjs,obtener_titulo_modal_extjs,click_boton_buscar_en_modal_extjs
 from Metodos.funciones import escribir_input_en_modal,click_boton_grabar_en_modal_extjs,click_tab_terceros_extjs,seleccionar_combo_extjs,set_valor_campo_extjs,abrir_combo_en_fieldset
 from Metodos.funciones import responder_mensaje,aceptar_messagebox_extjs,click_boton_ventana,escribir_combo_extjs
@@ -140,6 +140,7 @@ class Organizacion(BaseModel):
         self.sede = data.get("sede")
         self.rol = "CANAL NO TRADICIONAL"
         self.canal = data.get("canal")
+        self.plan = data.get("plan_base")
 
 class Credito(BaseModel):
 
@@ -175,7 +176,6 @@ class CotizacionContexto:
 
     def __init__(self, data: dict):
 
-        #self.entorno = data.get("entorno")
         self.movimiento = data.get("movimiento")
         self.id_cot = data.get("id")
         self.compania = Compania(data)
@@ -209,9 +209,7 @@ def main():
     error = False
     msj_error = None
 
-    nom_empresa = resolver_empresa(ctx)
-
-    ruta_carpeta = crear_carpeta_descargas(nom_empresa,ctx,entorno)
+    ruta_carpeta = crear_carpeta_descargas(ctx,entorno)
 
     try:
 
@@ -353,34 +351,16 @@ def main():
         interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
         logging.info(f"🖱️ Clic en CANAL → {ctx.organizacion.canal.upper()}")
         time.sleep(3)
-        #----------------------------
+
         click_fuera(driver)
-        #----------------------------
-        if nom_empresa.upper() == "ZUAL":
-            canal_base =  ctx.organizacion.canal.upper()
-        elif nom_empresa.upper() == "DONGFENG":
-            canal_base = "CANAL DONGFENG"
-        elif nom_empresa.upper() == "PANGU":
-            canal_base = "CANAL PANGU"
-        else:
-            canal_base = f"CANAL {nom_empresa.strip().upper()}"
 
-        # Construir búsqueda según el plan
-        if ctx.vehiculo.plan.upper() == "PARTICULAR":
-            texto_base = f"{canal_base} TR"
-        else:
-            texto_base = f"{canal_base} TAXI"
-
-        logging.info(f"🔎 Buscando canal: '{texto_base}'")
-
-        #texto_base = f"CANAL {nom_empresa.upper()} TR" if ctx.vehiculo.plan.upper() == "PARTICULAR" else f"CANAL {nom_empresa.upper()} TAXI"
-        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",texto_base)
-        #logging.info(f"🖱️ Clic en PLAN → {ctx.vehiculo.plan.upper()}")
-        logging.info(f"🖱️ Clic en PLAN → {texto_base}")
+        logging.info(f"🔎 Buscando canal: '{ctx.organizacion.plan}'")
+        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",ctx.organizacion.plan)
+        logging.info(f"🖱️ Clic en PLAN → {ctx.organizacion.plan}")
         time.sleep(3)
-        #----------------------------
+
         click_fuera(driver)
-        #----------------------------
+
         max_intentos_generar = 3
         for intento_gen in range(1, max_intentos_generar + 1):
             boton = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Datos Particulares']")))
@@ -403,12 +383,12 @@ def main():
                     driver.refresh()
                     time.sleep(5)
                     # Si refrescamos, debemos volver a seleccionar los combos anteriores
-                    interactuar_combo_por_name(driver, wait, "iderolcanal", "CANAL NO TRADICIONAL")
+                    interactuar_combo_por_name(driver, wait, "iderolcanal",ctx.organizacion.rol.upper())
                     time.sleep(3)
                     interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
                     time.sleep(3)
                     click_fuera(driver)
-                    seleccionar_combo_por_flecha(driver, wait, "ideplanselected", texto_base)
+                    seleccionar_combo_por_flecha(driver, wait, "ideplanselected",ctx.organizacion.plan)
                     time.sleep(3)
                     click_fuera(driver)
         else:
@@ -516,10 +496,6 @@ def main():
         else:
             logging.info("✅ Plan localizado y visible")
 
-        #----------------------------
-        # fieldset_plan = wait.until(EC.presence_of_element_located((By.XPATH, "//fieldset[.//span[normalize-space()='Plan 1']]")))
-        # wait.until(EC.visibility_of(fieldset_plan))
-        # logging.info("✅ Plan localizado y visible")
         #----------------------------
         boton_seleccionar = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[normalize-space()='Seleccionar'] | .//a[normalize-space()='Seleccionar']")))
         driver.execute_script("arguments[0].click();", boton_seleccionar)

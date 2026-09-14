@@ -15,13 +15,13 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
 
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
-    # 1. Hidden
+    # Hidden
     hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
 
-    # 2. Contenedor
+    # Contenedor
     contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
 
-    # 3. Input visible (1ra vez)
+    # Input visible (1ra vez)
     input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
 
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_visible)
@@ -30,36 +30,27 @@ def interactuar_combo_por_name(driver, wait, name_hidden, texto):
     input_visible.send_keys(texto)
     logging.info(f"⌨️ Digitando texto {texto}")
 
-    # 4. Esperar lista
+    # Esperar lista
     wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list')]")))
 
-    # 5. RE-OBTENER input (ExtJS lo recrea)
+    # RE-OBTENER input (ExtJS lo recrea)
     input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
 
-    # 6. Intento normal: ↓ + ENTER
-    #input_visible.send_keys(Keys.ARROW_DOWN)
-    #logging.info("no hace flecha hacia abajo")
+    # ENTER
     time.sleep(2)
     input_visible.send_keys(Keys.ENTER)
-    logging.info("⌨️ Enter enviado")
 
-    # 7. Validar hidden (espera corta)
+    # Esperar que ExtJS actualice el hidden
     try:
+
         wait.until(lambda d: hidden.get_attribute("value"))
-        logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER")
+        logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER. "f"Valor: {hidden.get_attribute('value')}")
         return
-    except:
-        #logging.error("❌ ENTER no confirmó, usando PLAN B (clic directo)")
+
+    except TimeoutException:
+        
+        logging.error(f"❌ ENTER no confirmó el combo '{name_hidden}'. "f"Valor hidden: '{hidden.get_attribute('value')}'")
         raise Exception("Problemas técnicos, comunícate con el área de sistemas")
-
-    # # 🧨 PLAN B — click directo en la opción
-    # opcion = wait.until(EC.element_to_be_clickable((By.XPATH,f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']")))
-    # opcion.click()
-    # logging.info("🖱️ Clic directo en opción")
-
-    # # 8. Validar nuevamente
-    # wait.until(lambda d: hidden.get_attribute("value"))
-    # logging.info(f"✅ Combo '{name_hidden}' confirmado por clic")
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 
@@ -133,65 +124,46 @@ def escribir_input_por_name(driver, wait, name, valor,booleano):
 
 def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
-    # 1️⃣ esperar que no haya máscara
+    # Esperar que no haya máscara
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
-    # 2️⃣ localizar hidden por NAME
+
+    # Localizar hidden por NAME
     hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
-    # 3️⃣ subir solo al contenedor de ese combo
+
+    # Subir solo al contenedor de ese combo
     contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
-    # 4️⃣ input visible SOLO de ese combo
+
+    # Input visible SOLO de ese combo
     input_visible = contenedor.find_element(By.XPATH, ".//input[@type='text' and contains(@class,'x-form-field')]")
+
     # 5️⃣ focus + click fuerte
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_visible)
     driver.execute_script("arguments[0].focus();", input_visible)
     driver.execute_script("arguments[0].click();", input_visible)
-    #logging.info("🖱️ Clic en combo")
-    # 6️⃣ limpiar y escribir
+
     input_visible.send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
     input_visible.send_keys(texto)
-    #logging.info("⌨️ Digitando texto")
-    # 7️⃣ esperar posibles cargas
-    #wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
-    if veces == 1:
-        
-        # esperar_lista_extjs(wait)
-        # logging.info("cargo la lista")
-        # time.sleep(2)
-        # input("Esperar")
-        # input_visible.send_keys(Keys.ARROW_DOWN)
-        # logging.info("⬇️ Flecha abajo (primera opción)")
-        # time.sleep(2)
-        # input_visible.send_keys(Keys.ENTER)
-        # logging.info("↵ Enter enviado")
-        # time.sleep(2)
+    wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
-        # 7️⃣ esperar posibles cargas
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-        # 8️⃣ ENTER FUERTE
-        input_visible.send_keys(Keys.ENTER)
-        #logging.info("↵ Enter enviado")
+    # logging.info(f"🔎 Antes de ENTER - visible='{input_visible.get_attribute('value')}' "f"hidden='{hidden.get_attribute('value')}'")
 
-    else:
-        # 7️⃣ esperar posibles cargas
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
-        # 8️⃣ ENTER FUERTE
-        input_visible.send_keys(Keys.ENTER)
-        #logging.info("↵ Enter enviado")
+    input_visible.send_keys(Keys.ENTER)
 
-    # 9️⃣ PEQUEÑA ESPERA lógica (NO sleep)
-    wait.until(lambda d: True)
+    # logging.info(f"🔎 Inmediatamente después - visible='{input_visible.get_attribute('value')}' "f"hidden='{hidden.get_attribute('value')}'")
 
-    # 🔁 10️⃣ FALLBACK: seleccionar desde la lista si no confirmó
-    if not hidden.get_attribute("value"):
-        logging.info("❌ Enter no confirmó, intentando selección directa")
+    # Esperar REALMENTE que ExtJS actualice el hidden
+    try:
+        wait.until(lambda d: hidden.get_attribute("value") not in (None, ""))
+
+        # logging.info(f"🔎 Después de confirmar - visible='{input_visible.get_attribute('value')}' "f"hidden='{hidden.get_attribute('value')}'")
+
+    except TimeoutException:
+
+        logging.info("❌ Enter no confirmó el combo")
         raise Exception("Problemas técnicos, comunícate con el área de sistemas")
 
-    # 11️⃣ validación final
-    if not hidden.get_attribute("value"):
-        raise Exception(f"Combo '{name_hidden}' no se confirmó")
-
-    logging.info(f"✅ Combo '{name_hidden}' confirmado")
+    logging.info(f"✅ Combo '{name_hidden}' confirmado. "f"Valor: {hidden.get_attribute('value')}")
 
 def ingresar_fecha_extjs(wait, name, fecha_ddmmyyyy,texto):
 
@@ -534,6 +506,9 @@ def responder_mensaje(driver, wait, nomboton):
 
     #Al parecer existen casos de homonimia con el nombre y los apellidos que ha ingresado. ?Desea visualizarlos?
     if mensaje != "La transacción fue procesada Satisfactoriamente.":
+        
+        #Clic en si para mas adelante
+
         raise Exception(mensaje)
 
     logging.info(f"⚠️ Mensaje : {mensaje}")

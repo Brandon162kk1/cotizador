@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 # -- Froms ---
 from datetime import timedelta,datetime
+from pandas import qcut
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
-from selenium.common.exceptions import WebDriverException,TimeoutException
+from selenium.common.exceptions import WebDriverException,TimeoutException,StaleElementReferenceException
 from selenium.webdriver.support import expected_conditions as EC
 from pprint import pformat
 from Tiempo.fechas_horas import get_pos_fecha_dmy
@@ -275,8 +276,7 @@ def main():
                 ingresar_btn2.click()
                 logging.info("🖱️ Clic en 'Ingresar'")
         except Exception as e:
-            logging.exception(e)
-            raise Exception("Hay otro usuario iniciando sessión")
+            logging.exception("❌ Error al intentar hacer clic en 'Ingresar'")
 
         XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
         max_intentos = 3

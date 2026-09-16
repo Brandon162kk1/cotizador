@@ -154,16 +154,15 @@ def escribir_y_enter_combo_por_name(driver, wait, name_hidden, texto,veces):
 
     # Esperar REALMENTE que ExtJS actualice el hidden
     try:
-        wait.until(lambda d: hidden.get_attribute("value") not in (None, ""))
-
-        # logging.info(f"🔎 Después de confirmar - visible='{input_visible.get_attribute('value')}' "f"hidden='{hidden.get_attribute('value')}'")
+        #wait.until(lambda d: hidden.get_attribute("value") not in (None, ""))
+        wait.until(lambda d: hidden.get_attribute("value"))
+        logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER. "f"Valor: {hidden.get_attribute('value')}")
+        return
 
     except TimeoutException:
 
-        logging.info("❌ Enter no confirmó el combo")
+        logging.error(f"❌ ENTER no confirmó el combo '{name_hidden}'. "f"Valor hidden: '{hidden.get_attribute('value')}'")
         raise Exception("Problemas técnicos, comunícate con el área de sistemas")
-
-    logging.info(f"✅ Combo '{name_hidden}' confirmado. "f"Valor: {hidden.get_attribute('value')}")
 
 def ingresar_fecha_extjs(wait, name, fecha_ddmmyyyy,texto):
 

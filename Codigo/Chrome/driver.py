@@ -28,8 +28,9 @@ def abrirDriver(ruta):
     chrome_options.add_argument("--kiosk-printing")
 
     # Configuracion de descargas y preferencias
+    ruta_abs = os.path.abspath(ruta)
     prefs = {
-        "download.default_directory": ruta,
+        "download.default_directory": ruta_abs,
         "download.prompt_for_download": False,              
         "download.directory_upgrade": True,
         "plugins.always_open_pdf_externally": True,        

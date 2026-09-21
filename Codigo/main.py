@@ -133,12 +133,12 @@ class Ejecutivo(BaseModel):
         self.nombre = data.get("ejecutivo")
         self.celular = data.get("celular_ejecutivo")
 
-class Compania(BaseModel):
+# class Compania(BaseModel):
 
-    def __init__(self, data: dict):
+#     def __init__(self, data: dict):
 
-        self.usuario = data.get("usuario")
-        self.contrasena = data.get("password")
+#         self.usuario = data.get("usuario")
+#         self.contrasena = data.get("password")
 
 class Organizacion(BaseModel):
 
@@ -186,7 +186,7 @@ class CotizacionContexto:
 
         self.movimiento = data.get("movimiento")
         self.id_cot = data.get("id")
-        self.compania = Compania(data)
+        #self.compania = Compania(data)
         self.organizacion = Organizacion(data)
         self.vehiculo = Vehiculo(data)
         self.credito = Credito(data)
@@ -196,7 +196,7 @@ class CotizacionContexto:
 
     def __str__(self):
         return pformat({
-            "Compania": self.compania.to_dict(ocultar=["usuario","contrasena"]),
+            #"Compania": self.compania.to_dict(ocultar=["usuario","contrasena"]),
             "Organizacion": self.organizacion.to_dict(),
             "Vehículo": self.vehiculo.to_dict(ocultar=["num_rodaje","num_motor","num_serie"]),
             "Crédito": self.credito.to_dict(),
@@ -403,6 +403,15 @@ def procesar_job(driver, wait, payload: dict):
     entorno_job = os.getenv("entorno", "false").strip().lower() == "true"
     ruta_carpeta = crear_carpeta_descargas(ctx, entorno_job)
 
+    # 🔄 Actualizar la carpeta de descargas de Chrome para esta cotización específica
+    try:
+        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": os.path.abspath(ruta_carpeta)
+        })
+    except Exception as e_cdp:
+        logging.warning(f"⚠️ No se pudo actualizar downloadPath vía CDP: {e_cdp}")
+
     try:
         logging.info(f"📋 Procesando Cotización ID: {ctx.id_cot}")
 
@@ -428,7 +437,7 @@ def procesar_job(driver, wait, payload: dict):
         actions = ActionChains(driver)
         actions.double_click(span_emision).perform()
         logging.info("🖱️ Doble clic en 'Cotizar'")
-        time.sleep(3)
+        time.sleep(5)
 
         span_mantenimiento = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Registrar Cotización']")))
         span_mantenimiento.click()
@@ -441,14 +450,14 @@ def procesar_job(driver, wait, payload: dict):
 
         interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
         logging.info(f"🖱️ Clic en CANAL → {ctx.organizacion.canal.upper()}")
-        time.sleep(3)
+        time.sleep(5)
 
         click_fuera(driver)
 
         logging.info(f"🔎 Buscando plan: '{ctx.organizacion.plan}'")
         seleccionar_combo_por_flecha(driver, wait, "ideplanselected", ctx.organizacion.plan)
         logging.info(f"🖱️ Clic en PLAN → {ctx.organizacion.plan}")
-        time.sleep(3)
+        time.sleep(5)
 
         click_fuera(driver)
 
@@ -471,12 +480,12 @@ def procesar_job(driver, wait, payload: dict):
                     driver.refresh()
                     time.sleep(5)
                     interactuar_combo_por_name(driver, wait, "iderolcanal", ctx.organizacion.rol.upper())
-                    time.sleep(3)
+                    time.sleep(5)
                     interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
-                    time.sleep(3)
+                    time.sleep(5)
                     click_fuera(driver)
                     seleccionar_combo_por_flecha(driver, wait, "ideplanselected", ctx.organizacion.plan)
-                    time.sleep(3)
+                    time.sleep(5)
                     click_fuera(driver)
         else:
             raise Exception("No se pudo cargar el formulario de Datos Particulares")

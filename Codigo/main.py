@@ -28,6 +28,13 @@ import json
 # Forzar la salida en UTF-8 para evitar UnicodeEncodeError
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+# Configurar logging para salida inmediata en consola Docker
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
 # --- Json desde variable de entorno ---
 data = json.loads(os.getenv("DATA", "{}"))
 entorno = os.getenv("entorno","false").strip().lower() == "true"
@@ -202,160 +209,244 @@ class CotizacionContexto:
 ctx = CotizacionContexto(data)
 #------------------------------------------
 
-def main():
+# --- Redis Imports & Signal Setup ---
+import signal
+import redis
 
+# Configuración de Redis
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = safe_int(os.getenv("REDIS_PORT"), 6379)
+REDIS_QUEUE = os.getenv("REDIS_QUEUE", "cola_cotizador_rimac")
+REDIS_STATUS_KEY = os.getenv("REDIS_STATUS_KEY", "worker_status:cotizador")
+
+# Flag global para control de ciclo de vida (Graceful Shutdown)
+worker_running = True
+
+def signal_handler(signum, frame):
+    global worker_running
+    logging.info(f"🛑 Señal recibida ({signum}). Iniciando apagado elegante del worker...")
+    worker_running = False
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+
+def iniciar_navegador(ruta_carpeta: str):
+    """Inicializa la instancia del WebDriver de Selenium."""
+    display_num = os.getenv("DISPLAY_NUM", "0")
+    os.environ["DISPLAY"] = f":{display_num}"
+
+    logging.info("🚀 Iniciando navegador Selenium...")
+    driver, wait = abrirDriver(ruta_carpeta)
+    return driver, wait
+
+
+def inicializar_sesion(driver, wait, compania_usuario=None, compania_contrasena=None):
+    """
+    Ejecuta el inicio de sesión único al arranque del worker en RIMAC SAS.
+    Maneja credenciales, token 2FA y navegación inicial.
+    """
+    driver.get(URL_SAS)
+    logging.info("🔐 Iniciando sesión única en RIMAC SAS")
+
+    user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
+    user_input.clear()
+    user_input.send_keys(os.getenv("usuarioRimac"))
+    logging.info("⌨️ Usuario digitando")
+
+    time.sleep(1)
+
+    pass_input = wait.until(EC.presence_of_element_located((By.ID, "CLAVE")))
+    pass_input.clear()
+    pass_input.send_keys(os.getenv("passwordRimac"))
+    logging.info("⌨️ Password digitado")
+
+    ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
+    driver.execute_script("arguments[0].click();", ingresar_btn)
+    logging.info("🖱️ Clic en 'Ingresar'")
+
+    token_locator = (By.ID, "TOKEN")
+    mensaje_locator = (By.ID, "lblMensaje")
+
+    resultado_ing = wait.until(
+        EC.any_of(
+            EC.visibility_of_element_located(token_locator),
+            EC.visibility_of_element_located(mensaje_locator)
+        )
+    )
+
+    if resultado_ing.get_attribute("id") == "lblMensaje":
+        mensaje = resultado_ing.text.strip()
+        raise Exception(f"Error en login: {mensaje}")
+
+    codigo = codigo_compania(url_api_cod_cot, API_KEY)
+
+    token_input = resultado_ing
+    token_input.clear()
+    token_input.send_keys(codigo)
+    logging.info(f"⌨️ Digitando {codigo} en 'TOKEN'")
+
+    try:
+        logging.info("🔎 Buscando botón 'Ingresar' tras token...")
+        ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
+        try:
+            driver.execute_script("arguments[0].click();", ingresar_btn2)
+        except:
+            ingresar_btn2.click()
+        logging.info("🖱️ Clic en 'Ingresar' (token)")
+    except Exception as e:
+        logging.exception("❌ Error al hacer clic en 'Ingresar' con token")
+
+    XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
+    max_intentos = 3
+
+    for intento in range(1, max_intentos + 1):
+        logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
+        try:
+            wait.until(
+                lambda d: (
+                    d.current_url.startswith(URL_SAS + "index.html")
+                    or (
+                        d.find_elements(*mensaje_locator)
+                        and d.find_element(*mensaje_locator).is_displayed()
+                        and d.find_element(*mensaje_locator).text.strip()
+                    )
+                )
+            )
+
+            mensajes = driver.find_elements(*mensaje_locator)
+            if mensajes and mensajes[0].is_displayed():
+                mensaje = mensajes[0].text.strip()
+                if mensaje:
+                    raise Exception(mensaje)
+
+            aceptar_botones = driver.find_elements(By.XPATH, "//input[@value='Aceptar'] | //button[normalize-space()='Aceptar'] | //a[normalize-space()='Aceptar']")
+            for btn in aceptar_botones:
+                if btn.is_displayed():
+                    logging.info("⚠️ Mensaje de validación ('Sesión con otro usuario'). Cerrándolo...")
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(2)
+
+            time.sleep(2)
+            break
+        except TimeoutException:
+            driver.refresh()
+            time.sleep(3)
+    else:
+        raise Exception("Plataforma SAS fuera de servicio al inicializar sesión")
+
+    logging.info("✅ Sesión inicializada con éxito (pantalla principal SAS) y lista para recibir trabajos")
+
+
+def reset_session(driver, wait):
+    """
+    Reset Suave: Retorna la navegación a la pantalla inicial del dashboard
+    sin cerrar sesión para permitir procesar el siguiente trabajo.
+    """
+    logging.info("🔄 Ejecutando reset suave de sesión (retornando a pantalla inicial)...")
+    try:
+        driver.get(URL_SAS + "index.html")
+        time.sleep(3)
+
+        aceptar_botones = driver.find_elements(By.XPATH, "//input[@value='Aceptar'] | //button[normalize-space()='Aceptar'] | //a[normalize-space()='Aceptar']")
+        for btn in aceptar_botones:
+            if btn.is_displayed():
+                driver.execute_script("arguments[0].click();", btn)
+                time.sleep(1)
+        logging.info("✅ Reset suave completado exitosamente")
+    except Exception as e:
+        logging.warning(f"⚠️ Error durante el reset suave: {e}")
+        raise e
+
+
+def asegurar_sesion(driver, wait):
+    """
+    Verifica si la sesión sigue activa en RIMAC SAS.
+    Si la sesión expiró o redirigió al login, vuelve a ejecutar inicializar_sesion().
+    """
+    try:
+        # Si detecta el input CODUSUARIO o la URL de login, la sesión expiró
+        login_input = driver.find_elements(By.ID, "CODUSUARIO")
+        if login_input and login_input[0].is_displayed():
+            logging.warning("⚠️ Sesión expirada detectada. Volviendo a iniciar sesión...")
+            inicializar_sesion(driver, wait)
+            return
+
+        # Si no detecta transacciones, revalida la pantalla o re-autentica
+        if "index.html" not in driver.current_url:
+            driver.get(URL_SAS + "index.html")
+            time.sleep(2)
+            login_input = driver.find_elements(By.ID, "CODUSUARIO")
+            if login_input and login_input[0].is_displayed():
+                logging.warning("⚠️ Sesión expirada detectada tras recargar. Re-autenticando...")
+                inicializar_sesion(driver, wait)
+    except Exception as e:
+        logging.warning(f"⚠️ Error verificando sesión ({e}). Intentando re-autenticación preventiva...")
+        try:
+            inicializar_sesion(driver, wait)
+        except Exception as reauth_err:
+            logging.error(f"❌ Falló re-autenticación preventiva: {reauth_err}")
+
+
+def procesar_job(driver, wait, payload: dict):
+    """
+    Ejecuta el flujo completo de cotización para un trabajo individual
+    pasando la misma instancia de driver / page.
+    """
+    payload = normalizar_data(payload)
+    ctx = CotizacionContexto(payload)
     poliza = False
     cotizacion = False
-    driver = None
     error = False
     msj_error = None
 
-    ruta_carpeta = crear_carpeta_descargas(ctx,entorno)
+    entorno_job = os.getenv("entorno", "false").strip().lower() == "true"
+    ruta_carpeta = crear_carpeta_descargas(ctx, entorno_job)
 
     try:
+        logging.info(f"📋 Procesando Cotización ID: {ctx.id_cot}")
 
-        display_num = os.getenv("DISPLAY_NUM", "0")
-        os.environ["DISPLAY"] = f":{display_num}"
-
-        driver,wait = abrirDriver(ruta_carpeta)
-
-        driver.get(URL_SAS)
-        logging.info("🔐 Iniciando sesión en RIMAC SAS")
-
-        if not entorno:
+        if not entorno_job:
             logging.info(ctx)
- 
-        user_input = wait.until(EC.presence_of_element_located((By.ID, "CODUSUARIO")))
-        user_input.clear()
-        user_input.send_keys(ctx.compania.usuario)
-        logging.info("⌨️ Usuario digitando")
 
-        time.sleep(1)
- 
-        pass_input = wait.until(EC.presence_of_element_located((By.ID, "CLAVE")))
-        pass_input.clear()
-        pass_input.send_keys(ctx.compania.contrasena)
-        logging.info(f"⌨️ Password digitado")
- 
-        ingresar_btn = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
-        driver.execute_script("arguments[0].click();", ingresar_btn)
-        logging.info("🖱️ Clic en 'Ingresar'")
+        # 0. Verificar y asegurar que la sesión continúe activa antes de empezar
+        asegurar_sesion(driver, wait)
 
-        #raise Exception("Probando el envio de Evolution API")
-
-        token_locator = (By.ID, "TOKEN")
-        mensaje_locator = (By.ID, "lblMensaje")
-
-        resultado_ing = wait.until(
-            EC.any_of(
-                EC.visibility_of_element_located(token_locator),
-                EC.visibility_of_element_located(mensaje_locator)
-            )
-        )
-
-        if resultado_ing.get_attribute("id") == "lblMensaje":
-            mensaje = resultado_ing.text.strip()
-            raise Exception(mensaje)
-
-        codigo = codigo_compania(url_api_cod_cot,API_KEY)
-
-        token_input = resultado_ing
-
-        token_input.clear()
-        token_input.send_keys(codigo)
-        logging.info(f"⌨️ Digitando {codigo} correctamente en 'TOKEN'")
-
-        try:
-            logging.info("🔎 Buscando botón 'Ingresar'...")
-            ingresar_btn2 = wait.until(EC.element_to_be_clickable((By.ID, "btningresar")))
-            logging.info("✅ Botón 'Ingresar' encontrado")
-            try:
-                driver.execute_script("arguments[0].click();", ingresar_btn2)
-                logging.info("🖱️ Clic en 'Ingresar' con JS")
-            except:
-                ingresar_btn2.click()
-                logging.info("🖱️ Clic en 'Ingresar'")
-        except Exception as e:
-            logging.exception("❌ Error al intentar hacer clic en 'Ingresar'")
-
+        # 1. Navegación en el menú: Transacciones -> Cotizar -> Registrar Cotización
         XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
-        max_intentos = 3
+        try:
+            span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", span_transacciones)
+            actions = ActionChains(driver)
+            actions.double_click(span_transacciones).perform()
+            logging.info("🖱️ Doble clic en 'Transacciones'")
+            time.sleep(2)
+        except Exception as err_trans:
+            logging.warning(f"⚠️ No se pudo hacer doble clic en Transacciones: {err_trans}")
 
-        for intento in range(1, max_intentos + 1):
-
-            logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
-            try:
-
-                # Espera hasta que ocurra cualquiera de las dos cosas
-                wait.until(
-                    lambda d: (
-                        d.current_url.startswith(URL_SAS + "index.html")
-                        or (
-                            d.find_elements(*mensaje_locator)
-                            and d.find_element(*mensaje_locator).is_displayed()
-                            and d.find_element(*mensaje_locator).text.strip()
-                        )
-                    )
-                )
-
-                # Si apareció un mensaje de error en la de login, detener el proceso
-                mensajes = driver.find_elements(*mensaje_locator)
-                if mensajes and mensajes[0].is_displayed():
-                    mensaje = mensajes[0].text.strip()
-                    if mensaje:
-                        raise Exception(mensaje)
-
-                # --- NUEVO: Detectar popup de validación "Sesión iniciada con otro usuario" ---
-                # Buscamos botones o enlaces que tengan el texto 'Aceptar' dentro de modales de alerta
-                aceptar_botones = driver.find_elements(By.XPATH, "//input[@value='Aceptar'] | //button[normalize-space()='Aceptar'] | //a[normalize-space()='Aceptar']")
-                for btn in aceptar_botones:
-                    if btn.is_displayed():
-                        logging.info("⚠️ Detectado mensaje de validación en pantalla ('Sesión con otro usuario'). Cerrándolo...")
-                        driver.execute_script("arguments[0].click();", btn)
-                        time.sleep(2)
-
-                #logging.info(f"⏳ Esperando carga de SAS... Intento {intento}")
-                span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
-
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});",span_transacciones)
-                actions = ActionChains(driver)
-                actions.double_click(span_transacciones).perform()
-                logging.info("🖱️ Doble clic realizado en 'Transacciones'")
-
-                time.sleep(2)
-                break
-
-            except TimeoutException:
-                driver.refresh()
-                time.sleep(3)
-
-        else:
-            raise Exception("Plataforma SAS fuera de servicio")
-
-        #----------------------------
-        span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']"))) # L
+        span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']")))
+        actions = ActionChains(driver)
         actions.double_click(span_emision).perform()
-        logging.info("🖱️ Doble clic realizado en 'Cotizar'")
+        logging.info("🖱️ Doble clic en 'Cotizar'")
         time.sleep(3)
-        #----------------------------
-        span_mantenimiento = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Registrar Cotización']"))) # L
+
+        span_mantenimiento = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Registrar Cotización']")))
         span_mantenimiento.click()
-        logging.info("🖱️ Clic realizado en 'Registrar Cotización'")
+        logging.info("🖱️ Clic en 'Registrar Cotización'")
         time.sleep(10)
-        logging.info("------------------------------------")
-        #----------------------------
-        interactuar_combo_por_name(driver, wait, "iderolcanal",ctx.organizacion.rol.upper())
+
+        interactuar_combo_por_name(driver, wait, "iderolcanal", ctx.organizacion.rol.upper())
         logging.info(f"🖱️ Clic en ROL → {ctx.organizacion.rol.upper()}")
         time.sleep(5)
-        #----------------------------
+
         interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
         logging.info(f"🖱️ Clic en CANAL → {ctx.organizacion.canal.upper()}")
         time.sleep(3)
 
         click_fuera(driver)
 
-        logging.info(f"🔎 Buscando canal: '{ctx.organizacion.plan}'")
-        seleccionar_combo_por_flecha(driver,wait,"ideplanselected",ctx.organizacion.plan)
+        logging.info(f"🔎 Buscando plan: '{ctx.organizacion.plan}'")
+        seleccionar_combo_por_flecha(driver, wait, "ideplanselected", ctx.organizacion.plan)
         logging.info(f"🖱️ Clic en PLAN → {ctx.organizacion.plan}")
         time.sleep(3)
 
@@ -363,116 +454,100 @@ def main():
 
         max_intentos_generar = 3
         for intento_gen in range(1, max_intentos_generar + 1):
-            boton = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Datos Particulares']")))
+            boton = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Generar Datos Particulares']")))
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", boton)
             driver.execute_script("arguments[0].click();", boton)
             logging.info(f"🖱️ Clic en 'Generar Datos Particulares' (Intento {intento_gen})")
-            
+
             try:
                 wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-                logging.info("✅ Carga finalizada (Máscara oculta)")
-                
-                # Esperamos un momento a que renderice ExtJS y buscamos el elemento txtplaca_de_rodaje
+                logging.info("✅ Carga finalizada")
                 time.sleep(3)
                 wait.until(EC.presence_of_element_located((By.NAME, "txtplaca_de_rodaje")))
-                #logging.info("👁️ Campo 'txtplaca_de_rodaje' detectado con éxito")
                 break
-            except (TimeoutException, Exception) as e:
-                logging.warning(f"⚠️ El campo de la placa no apareció en el intento {intento_gen}. Reintentando...")
+            except (TimeoutException, Exception):
+                logging.warning(f"⚠️ Reintentando formulario de Datos Particulares ({intento_gen}/{max_intentos_generar})...")
                 if intento_gen < max_intentos_generar:
                     driver.refresh()
                     time.sleep(5)
-                    # Si refrescamos, debemos volver a seleccionar los combos anteriores
-                    interactuar_combo_por_name(driver, wait, "iderolcanal",ctx.organizacion.rol.upper())
+                    interactuar_combo_por_name(driver, wait, "iderolcanal", ctx.organizacion.rol.upper())
                     time.sleep(3)
-                    interactuar_combo_por_name(driver, wait, "idecanal", ctx.usuario.canal.upper())
+                    interactuar_combo_por_name(driver, wait, "idecanal", ctx.organizacion.canal.upper())
                     time.sleep(3)
                     click_fuera(driver)
-                    seleccionar_combo_por_flecha(driver, wait, "ideplanselected",ctx.organizacion.plan)
+                    seleccionar_combo_por_flecha(driver, wait, "ideplanselected", ctx.organizacion.plan)
                     time.sleep(3)
                     click_fuera(driver)
         else:
-            raise Exception("No se pudo cargar el formulario de Datos Particulares después de varios intentos")
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtplaca_de_rodaje",ctx.vehiculo.num_rodaje,False)
+            raise Exception("No se pudo cargar el formulario de Datos Particulares")
+
+        escribir_input_por_name(driver, wait, "txtplaca_de_rodaje", ctx.vehiculo.num_rodaje, False)
         time.sleep(1)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtnumero_de_motor",ctx.vehiculo.num_motor,False)
+
+        escribir_input_por_name(driver, wait, "txtnumero_de_motor", ctx.vehiculo.num_motor, False)
         time.sleep(1)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtnumero_de_serie",ctx.vehiculo.num_serie,False)
+
+        escribir_input_por_name(driver, wait, "txtnumero_de_serie", ctx.vehiculo.num_serie, False)
         time.sleep(1)
-        #----------------------------
-        logging.info(f"🚗 Vehículo a buscar: {ctx.vehiculo}")
+
+        logging.info(f"🚗 Vehículo: {ctx.vehiculo}")
         modelo = limpiar(ctx.vehiculo.modelo)
         marca = limpiar(ctx.vehiculo.marca)
         tipo = limpiar(ctx.vehiculo.tipo)
         clase = limpiar(ctx.vehiculo.clase)
         texto_busqueda = modelo
         texto_opcion = f"{modelo}|{marca}|{tipo}|{clase}"
-        seleccionar_modelo_extjs(wait,texto_busqueda=texto_busqueda,texto_opcion=texto_opcion)
+        seleccionar_modelo_extjs(wait, texto_busqueda=texto_busqueda, texto_opcion=texto_opcion)
         time.sleep(3)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtweb_anos_de_fabricacion",ctx.vehiculo.anio,False)
+
+        escribir_input_por_name(driver, wait, "txtweb_anos_de_fabricacion", ctx.vehiculo.anio, False)
         time.sleep(1)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtsuma_asegurada",ctx.vehiculo.valor,False)
+
+        escribir_input_por_name(driver, wait, "txtsuma_asegurada", ctx.vehiculo.valor, False)
         time.sleep(1)
-        #----------------------------
-        escribir_y_enter_combo_por_name(driver,wait,"selusos_de_vehiculos",ctx.vehiculo.uso,1)
-        logging.info(f"🖱️ Opción seleccionada para el uso de vehículos → '{ctx.vehiculo.uso}'")
-        time.sleep(3)
-        #----------------------------
+
+        escribir_y_enter_combo_por_name(driver, wait, "selusos_de_vehiculos", ctx.vehiculo.uso, 1)
+        time.sleep(2)
+
         gas = 'SI' if ctx.vehiculo.gas else 'NO'
-        escribir_y_enter_combo_por_name(driver,wait,"selcombustible_gas",gas,1)
-        logging.info(f"🖱️ Opción seleccionada para GAS → '{gas}'")
-        time.sleep(3)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "txtnro_pasajeros",ctx.vehiculo.ocupantes,False)
+        escribir_y_enter_combo_por_name(driver, wait, "selcombustible_gas", gas, 1)
+        time.sleep(2)
+
+        escribir_input_por_name(driver, wait, "txtnro_pasajeros", ctx.vehiculo.ocupantes, False)
         time.sleep(1)
-        #----------------------------
+
         soat = 'SI' if ctx.vehiculo.seguro else 'NO'
-        escribir_y_enter_combo_por_name(driver,wait,"selprocedenciaexterna",soat,1)
-        logging.info(f"🖱️ Opción seleccionada para SOAT → '{soat}'")
-        time.sleep(3)
-        #----------------------------
-        #inspeccion = 'SI' if ctx.vehiculo.inspeccion else 'NO'
+        escribir_y_enter_combo_por_name(driver, wait, "selprocedenciaexterna", soat, 1)
+        time.sleep(2)
+
         inspeccion = 'NO'
-        escribir_y_enter_combo_por_name(driver,wait,"selrequiereinspeccion",inspeccion,1)
-        logging.info(f"🖱️ Opción seleccionada para INSPECCION → '{inspeccion}'")
-        time.sleep(3)
-        #----------------------------
+        escribir_y_enter_combo_por_name(driver, wait, "selrequiereinspeccion", inspeccion, 1)
+        time.sleep(2)
+
         if ctx.vehiculo.uso == 'PARTICULAR':
-            escribir_y_enter_combo_por_name(driver,wait,"seltipo_de_persona",ctx.cliente.tipo_persona,2)
-            logging.info(f"🖱️ Opción seleccionada para Tipo de persona → '{ctx.cliente.tipo_persona}'")
-            time.sleep(3)
-            #----------------------------
-            escribir_y_enter_combo_por_name(driver,wait,"seltiempo_de_credito",ctx.credito.tiempo,2)
-            logging.info(f"🖱️ Opción seleccionada para el tiempo de crédito → '{ctx.credito.tiempo}'")
-            time.sleep(3)
-            #----------------------------
-            escribir_input_por_name(driver, wait, "txtvendedor",ctx.ejecutivo.nombre,False)
+            escribir_y_enter_combo_por_name(driver, wait, "seltipo_de_persona", ctx.cliente.tipo_persona, 2)
+            time.sleep(2)
+            escribir_y_enter_combo_por_name(driver, wait, "seltiempo_de_credito", ctx.credito.tiempo, 2)
+            time.sleep(2)
+            escribir_input_por_name(driver, wait, "txtvendedor", ctx.ejecutivo.nombre, False)
             time.sleep(1)
-            #----------------------------
-            localizacion = 'LIMA' if ctx.vehiculo.localizacion in ('LIMA','CALLAO') else 'PROVINCIAS'
-            escribir_y_enter_combo_por_name(driver,wait,"sellocalización",localizacion,2)
-            logging.info(f"🖱️ Opción seleccionada en localización → '{localizacion}'")
-            time.sleep(3)
-        #----------------------------
-        btn_cal = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Calcular Planes']")))
+            localizacion = 'LIMA' if ctx.vehiculo.localizacion in ('LIMA', 'CALLAO') else 'PROVINCIAS'
+            escribir_y_enter_combo_por_name(driver, wait, "sellocalización", localizacion, 2)
+            time.sleep(2)
+
+        btn_cal = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Calcular Planes']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_cal)
         driver.execute_script("arguments[0].click();", btn_cal)
         logging.info("🖱️ Clic en 'Calcular Planes'")
-        #----------------------------
+
         try:
             wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-            logging.info("✅ Carga finalizada")
         except TimeoutException:
             raise Exception("Tiempo de espera excedido al Calcular Planes")
-        #----------------------------
-        modal_mensaje = (By.XPATH,"//div[contains(@class,'x-window-dlg')]//span[contains(text(),'No se encontraron planes configurados')]")
-        fieldset_plan = (By.XPATH,"//fieldset[.//span[normalize-space()='Plan 1']]")
-        toast_error = (By.CSS_SELECTOR,"#message-div .message")
+
+        modal_mensaje = (By.XPATH, "//div[contains(@class,'x-window-dlg')]//span[contains(text(),'No se encontraron planes configurados')]")
+        fieldset_plan = (By.XPATH, "//fieldset[.//span[normalize-space()='Plan 1']]")
+        toast_error = (By.CSS_SELECTOR, "#message-div .message")
         modal_validacion = (By.ID, "lblContenido")
 
         resultado = wait.until(
@@ -485,444 +560,161 @@ def main():
         )
 
         texto = resultado.text.strip()
+        if resultado.get_attribute("id") == "lblContenido" or "Datos erróneos" in texto or "No se encontraron planes configurados" in texto:
+            raise Exception(texto)
 
-        if resultado.get_attribute("id") == "lblContenido":
-            raise Exception(texto)
-        if "Datos erróneos" in texto:
-            raise Exception(texto)
-        if "No se encontraron planes configurados" in texto:
-            logging.warning("⚠️ Apareció modal")
-            raise Exception(texto)
-        else:
-            logging.info("✅ Plan localizado y visible")
-
-        #----------------------------
         boton_seleccionar = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[normalize-space()='Seleccionar'] | .//a[normalize-space()='Seleccionar']")))
         driver.execute_script("arguments[0].click();", boton_seleccionar)
         logging.info("🖱️ Clic en Seleccionar")
+        time.sleep(3)
 
-        # Avisar al ejecutivo por wsp para que confirme si es con descuento o no
-        descuento = False
-
-        if descuento :
-            #----------------------------
-            escribir_input_por_name(driver, wait, "recadctoppact","5",False)
-            time.sleep(1)
-            #----------------------------
-            tomar_capturar(driver,ruta_carpeta,f"antesDESCUENTO{ctx.id_cot}")
-            #----------------------------
-            btn_calcular = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Calcular']")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_calcular)
-            driver.execute_script("arguments[0].click();", btn_calcular)
-            logging.info("🖱️ Clic en 'Calcular'")
-            time.sleep(5)
-            #----------------------------
-            # Esperar que aparezca el mensaje
-            mensaje = wait.until(
-                EC.visibility_of_element_located((
-                    By.XPATH,
-                    "//span[contains(@class,'ext-mb-text') and contains(.,'La información se grabó exitosamente.')]"
-                ))
-            )
-            logging.info(f"✅ {mensaje.text}")
-            #----------------------------
-            # Esperar botón Aceptar
-            btn_aceptar = wait.until(
-                EC.element_to_be_clickable((
-                    By.XPATH,
-                    "//div[contains(@class,'x-window-dlg')]//button[normalize-space()='Aceptar']"
-                ))
-            )
-            btn_aceptar.click()
-            logging.info("🖱️ Clic en Aceptar")
-            #----------------------------
-            # esperar que NO exista el overlay
-            wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "ext-el-mask")))
-            logging.info("✅ Carga finalizada")
-            #----------------------------
-            tomar_capturar(driver,ruta_carpeta,f"despuesDESCUENTO{ctx.id_cot}")
-            raise Exception("Se aplico descuento del 5% , verificar")
-
-        time.sleep(5)
-        #----------------------------
-        tab_fraccionamiento = wait.until(EC.element_to_be_clickable((By.XPATH,"//span[contains(@class,'x-tab-strip-text') and normalize-space()='Fraccionamiento']")))
+        tab_fraccionamiento = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class,'x-tab-strip-text') and normalize-space()='Fraccionamiento']")))
         tab_fraccionamiento.click()
         logging.info("🖱️ Clic en Fraccionamiento")
-        #----------------------------
-        time.sleep(5)
-        #ingresar_fecha_extjs(driver,wait,name="fecinicertificado",fecha_ddmmyyyy="16/03/2026",texto=f"Fecha de Inicio de Certificado")
-        #click_fuera(driver)
+        time.sleep(3)
+
         tipo_cuenta = "Cuenta de Ahorros" if ctx.cliente.tipo_persona.upper() == "NATURAL" else "Cuenta Corriente"
         tiempo_12 = ctx.credito.tiempo == "12 MESES"
         es_juridica = ctx.cliente.tipo_persona.upper() == "JURIDICA"
-
         tipo_plan = "PLAN CC CNT PERSONA JURIDICA" if es_juridica else ("PLAN 2020 CC PN 0% USD 12 CUOTAS" if tiempo_12 else "PLAN CC CNT PERSONA NATURAL")
 
-        escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento",tipo_plan,2)
-        logging.info(f"🖱️ Opción seleccionada para Tipo de Plan → '{tipo_plan}'")
+        escribir_y_enter_combo_por_name(driver, wait, "ideplanfinanciamiento", tipo_plan, 2)
         time.sleep(1)
-        #----------------------------
-        escribir_input_por_name(driver, wait, "numcuotas", ctx.credito.cuotas,False)
+
+        escribir_input_por_name(driver, wait, "numcuotas", ctx.credito.cuotas, False)
         time.sleep(1)
-        #----------------------------
-        escribir_y_enter_combo_por_name(driver, wait, "idetipotarjeta",tipo_cuenta,2)
-        logging.info(f"🖱️ Clic en tipo de cuenta → {tipo_cuenta}")
-        time.sleep(3)
-        #----------------------------
+
+        escribir_y_enter_combo_por_name(driver, wait, "idetipotarjeta", tipo_cuenta, 2)
+        time.sleep(2)
+
         fecha_ddmmyyyy = (datetime.strptime(get_pos_fecha_dmy(), "%d/%m/%Y") + timedelta(days=7)).strftime("%d/%m/%Y")
-        ingresar_fecha_extjs(wait,name="fecprimvcto",fecha_ddmmyyyy=fecha_ddmmyyyy,texto=f"Fecha primer vencimiento")
-        time.sleep(3)
-        #----------------------------
+        ingresar_fecha_extjs(wait, name="fecprimvcto", fecha_ddmmyyyy=fecha_ddmmyyyy, texto="Fecha primer vencimiento")
+        time.sleep(2)
         click_fuera(driver)
-        #----------------------------
-        btn_generar = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar']")))
+
+        btn_generar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Generar']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_generar)
         driver.execute_script("arguments[0].click();", btn_generar)
         logging.info("🖱️ Clic en 'Generar'")
-        time.sleep(5)
-        #----------------------------
+        time.sleep(3)
+
         btn_ing_cliente = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Ingresar Cliente']")))
         driver.execute_script("arguments[0].click();", btn_ing_cliente)
-        logging.info("🖱️ Clic en 'Ingresar Cliente'")
-        time.sleep(5)
-        #----------------------------
-        wait.until(EC.presence_of_element_located((By.XPATH,"//li[contains(@class,'x-tab-strip-active')]//span[normalize-space()='Cliente']")))
-        logging.info("✅ Tab 'Cliente' activa")
-        #----------------------------
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR,"div.ext-el-mask, div.ext-el-mask-msg")))
-        logging.info("✅ Carga finalizada")   
-        #----------------------------
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR,"div.x-panel-body div.x-toolbar")))
-        logging.info("✅ Toolbar del grid cargado")
-        #----------------------------
-        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR,"div.ext-el-mask, div.ext-el-mask-msg")))
-        logging.info("✅ Carga finalizada")  
-        #----------------------------
+        time.sleep(3)
+
+        wait.until(EC.presence_of_element_located((By.XPATH, "//li[contains(@class,'x-tab-strip-active')]//span[normalize-space()='Cliente']")))
+        wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
+
         click_agregar_cliente_extjs(driver)
         logging.info("🖱️ Clic en 'Agregar'")
-        #----------------------------
-        titulo_modal = obtener_titulo_modal_extjs(wait)
 
+        titulo_modal = obtener_titulo_modal_extjs(wait)
         if titulo_modal is None:
             raise Exception("No apareció modal para registrar cliente")
 
-        time.sleep(5)
-
-        #------- MODAL NUEVO ASEGURADO PARA CAMBIAR TIPO DE PERSONA Y TIPO DE DOCUMENTO ----------------------
- 
+        time.sleep(3)
         wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.x-window[style*='visibility: visible']")))
 
         if es_juridica:
-
-            escribir_combo_extjs(wait,"idptipotercero","PERSONA JURÍDICA" if es_juridica else "PERSONA NATURAL",valor_esperado="J" if es_juridica else "N")
-
+            escribir_combo_extjs(wait, "idptipotercero", "PERSONA JURÍDICA", valor_esperado="J")
+            time.sleep(2)
+            escribir_combo_extjs(wait, "idptipodocumento", ctx.cliente.tipo_doc)
             time.sleep(2)
 
-            escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc)
-
-        time.sleep(5)
-
-        dispatch_tipo_doc = {
-            "RUC": "1",
-            "DNI": "2",
-            "PASAPORTE": "3",
-            "C.E.": "4"
-        }
-
+        dispatch_tipo_doc = {"RUC": "1", "DNI": "2", "PASAPORTE": "3", "C.E.": "4"}
         if ctx.cliente.tipo_doc != 'DNI':
+            val_doc = dispatch_tipo_doc.get(ctx.cliente.tipo_doc.upper())
+            if not val_doc:
+                raise Exception(f"Tipo de documento '{ctx.cliente.tipo_doc}' no soportado")
+            escribir_combo_extjs(wait, "idptipodocumento", ctx.cliente.tipo_doc, valor_esperado=val_doc)
+            time.sleep(2)
 
-            valor_esperado_idptipodocumento = dispatch_tipo_doc.get(ctx.cliente.tipo_doc.upper())
-
-            if valor_esperado_idptipodocumento is None:
-                raise Exception(f"Tipo de documento '{ctx.cliente.tipo_doc}' no soportado en la compañía")
-
-            escribir_combo_extjs(wait,"idptipodocumento",ctx.cliente.tipo_doc,valor_esperado=valor_esperado_idptipodocumento)
-
-            time.sleep(3)
-
-        escribir_input_en_modal(driver,wait,"numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc,True)
-
-        time.sleep(3)
+        escribir_input_en_modal(driver, wait, "numerodoc", os.getenv("ruc_cot") if es_juridica else ctx.cliente.num_doc, True)
+        time.sleep(2)
 
         click_boton_buscar_en_modal_extjs(driver)
-
         time.sleep(3)
-        
+
         campo_nombre = wait.until(EC.presence_of_element_located((By.NAME, "nombre")))
-
-        valor = campo_nombre.get_attribute("value").strip()
-
-        if valor:
-            logging.info("✅ El sistema autocompletó los datos")
-        else:
-            logging.info("⚠️ El sistema no completó los datos. Se llenarán manualmente")
-      
-            #--- Falta realizar pruebas ---
+        if not campo_nombre.get_attribute("value").strip():
             if es_juridica:
                 raise Exception("No se pudo autocompletar los datos de la empresa")
             else:
-
                 set_valor_campo_extjs(driver, wait, "nombre", ctx.cliente.nombres)
-                time.sleep(1)
-                #----------------------------------------------------------------
                 set_valor_campo_extjs(driver, wait, "apepaterno", ctx.cliente.apellido_paterno)
-                time.sleep(1)
-                #----------------------------------------------------------------
                 set_valor_campo_extjs(driver, wait, "apematerno", ctx.cliente.apellido_materno)
-                time.sleep(1)
-                #----------------------------------------------------------------
-                # ACA FALTA ESTADO CIVIL
-                #----------------------------------------------------------------
                 driver.execute_script("""
-                    var radio = document.querySelector(
-                        "input[name='idpgenero'][value='" + arguments[0] + "']"
-                    );
-
+                    var radio = document.querySelector("input[name='idpgenero'][value='" + arguments[0] + "']");
                     radio.checked = true;
-
                     radio.dispatchEvent(new Event('click', {bubbles:true}));
                     radio.dispatchEvent(new Event('change', {bubbles:true}));
-                    """, ctx.cliente.sexo)
-                logging.info(f"✅ Radio 'Sexo' = '{ctx.cliente.sexo}'")
-                time.sleep(2)
-                #----------------------------------------------------------------
+                """, ctx.cliente.sexo)
+                time.sleep(1)
                 driver.execute_script("""
-                var win = Ext.WindowMgr.getActive();
-
-                var campo = win.find("name", "fecnacimiento")[0];
-
-                campo.setValue(arguments[0]);
-                campo.fireEvent('change', campo, arguments[0]);
+                    var win = Ext.WindowMgr.getActive();
+                    var campo = win.find("name", "fecnacimiento")[0];
+                    campo.setValue(arguments[0]);
+                    campo.fireEvent('change', campo, arguments[0]);
                 """, ctx.cliente.fecha_nac)
-                logging.info(f"✅ Fecha Nacimiento = '{ctx.cliente.fecha_nac}'")
                 time.sleep(1)
 
-            #----------------------------------------------------------------
             abrir_combo_en_fieldset(driver, "Direcciones", "idedistrito")
             time.sleep(1)
-            #--- Ojo que aca deberia ir el distrito del cliente no de donde opera el vehiculo ---
             seleccionar_combo_extjs(wait, ctx.vehiculo.distrito)
             time.sleep(1)
-            #----------------------------------------------------------------
+
             abrir_combo_en_fieldset(driver, "Direcciones", "idptipovia")
             time.sleep(1)
-            #----------------------------------------------------------------
             seleccionar_combo_extjs(wait, ctx.cliente.tipo_via)
             time.sleep(1)
-            #----------------------------------------------------------------
+
             driver.execute_script("""
                 var campo = document.querySelector("input[name='nomvia']");
-
-                if(!campo)
-                    throw "No existe nomvia";
-
                 campo.value = arguments[0];
-
                 campo.dispatchEvent(new Event('input', {bubbles:true}));
                 campo.dispatchEvent(new Event('change', {bubbles:true}));
-                """, ctx.cliente.nom_via)
-            logging.info(f"⌨️ Digitando Nombre de Via : {ctx.cliente.nom_via}")
-            time.sleep(1)
-            #----------------------------------------------------------------
+            """, ctx.cliente.nom_via)
+
             driver.execute_script("""
                 var campo = document.querySelector("input[name='numcasa']");
-
-                if(!campo)
-                    throw "No existe numcasa";
-
                 campo.value = arguments[0];
-
                 campo.dispatchEvent(new Event('input', {bubbles:true}));
                 campo.dispatchEvent(new Event('change', {bubbles:true}));
-                """, ctx.cliente.num_via)
-            logging.info(f"⌨️ Digitando Numero de Via : {ctx.cliente.num_via}")
-            time.sleep(1)
-            #----------------------------------------------------------------
-            set_valor_campo_extjs(driver, wait, "numtelefcasa", ctx.cliente.celular) #numtelefmovil
-            time.sleep(1)
-            #----------------------------------------------------------------
-            set_valor_campo_extjs(driver, wait, "emailpersonal", ctx.cliente.correo) #emailtrabajo
-            #----------------------------------------------------------------
-            click_boton_grabar_en_modal_extjs(driver,wait)
+            """, ctx.cliente.num_via)
 
+            set_valor_campo_extjs(driver, wait, "numtelefcasa", ctx.cliente.celular)
+            set_valor_campo_extjs(driver, wait, "emailpersonal", ctx.cliente.correo)
+
+            click_boton_grabar_en_modal_extjs(driver, wait)
             mensaje = aceptar_messagebox_extjs(driver, wait)
 
             if "Satisfactoriamente" in mensaje:
-                logging.info("✅ Operación exitosa")
-
                 responder_mensaje(driver, wait, "Aceptar")
-
+                time.sleep(3)
                 try:
-                    # Esperar que desaparezca el MessageBox
-                    wait.until(
-                        EC.invisibility_of_element_located((
-                            By.XPATH,
-                            "//div[contains(@class,'x-window-dlg') and .//span[contains(@class,'ext-mb-text')]]"
-                        ))
-                    )
-
-                    logging.info("✅ MessageBox cerrado")
-                except:
-                    time.sleep(10)
-                    logging.info("✅ Se espero 10 segundos")
-                #----------------------------------------------
-                try:
-                    # Esperar que exista la ventana Persona Natural
                     ventana = wait.until(
-                        lambda d: next(
-                            (
-                                v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
-                                if v.is_displayed()
-                                and v.find_element(
-                                    By.CSS_SELECTOR,
-                                    ".x-window-header-text"
-                                ).text.strip() != "Nuevo Asegurado"
-                            ),
-                            None
-                        )
+                        lambda d: next((v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window") if v.is_displayed()), None)
                     )
+                    boton = ventana.find_element(By.CSS_SELECTOR, "button.tb-exit")
+                    driver.execute_script("arguments[0].click();", boton)
+                except Exception as ex_win:
+                    logging.warning(f"⚠️ No se pudo cerrar la ventana de asegurado: {ex_win}")
 
-                except:
-
-                    titulo_esperado = f"{ctx.cliente.nombres} {ctx.cliente.apellido_paterno} {ctx.cliente.apellido_materno}".upper()
-
-                    ventana = wait.until(
-                        lambda d: next(
-                            (
-                                v for v in d.find_elements(By.CSS_SELECTOR, "div.x-window")
-                                if v.is_displayed()
-                                and titulo_esperado in v.find_element(
-                                    By.CSS_SELECTOR,
-                                    ".x-window-header-text"
-                                ).text.upper()
-                            ),
-                            None
-                        )
-                    )
-
-                titulo = ventana.find_element(By.CSS_SELECTOR,".x-window-header-text").text
-
-                logging.info(f"✅ Ventana encontrada: {titulo}")
-
-                # Buscar el botón Salir SOLO dentro de esa ventana
-                boton = ventana.find_element(By.CSS_SELECTOR,"button.tb-exit")
-
-                wait.until(lambda d: boton.is_displayed() and boton.is_enabled())
-
-                driver.execute_script("arguments[0].click();", boton)
-
-                logging.info("🖱️ Clic en Salir")
-
-            elif "input" in mensaje:
-                raise Exception(f"{mensaje}")
-            else:
-      
-                logging.warning(f"⚠️ Mensaje : {mensaje}")
-
-                #if "datos fueron observados" not in mensaje:
-
-                time.sleep(5)
-
-                aviso = wait.until(EC.visibility_of_element_located((By.XPATH,"//div[contains(@class,'x-window')][.//span[text()='Aviso']]")))
-
-                boton = aviso.find_element(By.XPATH,".//button[normalize-space()='Sí']")
-                boton.click()
-                logging.info(f"🖱️ Clic en 'Sí'")
-
-                time.sleep(5)
-
-                click_boton_ventana(driver,wait,"Validación de tercero","Cargar datos",ctx)
-            
-            #-------------------------------------------------------------
-
-        time.sleep(10)
-        click_boton_grabar_en_modal_extjs(driver,wait)
         time.sleep(5)
+        click_boton_grabar_en_modal_extjs(driver, wait)
+        time.sleep(3)
 
-        btn_gen_coti = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Generar Cotización']")))
+        btn_gen_coti = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Generar Cotización']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_gen_coti)
         driver.execute_script("arguments[0].click();", btn_gen_coti)
-        logging.info("🖱️ Clic en 'Generar Cotización'")
+        time.sleep(3)
 
-        time.sleep(5)
-
-        btn_si = wait.until(EC.element_to_be_clickable((By.XPATH,"//button[normalize-space()='Sí']")))
+        btn_si = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sí']")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_si)
         driver.execute_script("arguments[0].click();", btn_si)
-        logging.info("🖱️ Clic en 'Sí'")
-        #-------------------------------------------------------------------------------------
-        try:
-            wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask-msg.x-mask-loading")))
-            logging.info("✅ Carga finalizada")
-        except TimeoutException: 
-            raise Exception("Tiempo de espera excedido al Generar Cotización")
-        #-------------------------------------------------------------------------------------
-        time.sleep(10)
-        
-        # Logica para eliminar los datos de un cliente Juridico, queremos que la cotizacion salga sin datos del cliente por el momento
-        if es_juridica:
-            try:
-                click_tab_terceros_extjs(driver)
-                logging.info("🖱️ Clic en Tab 'Terceros'")
-            except Exception as e:
-                raise Exception(f"No se encontró la pestaña Terceros | Motivo: {e}")
+        time.sleep(5)
 
-            time.sleep(10)
-
-            try:
-
-                # filas_visibles = [
-                #     f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-                #     if f.is_displayed()
-                # ]
-
-                # logging.info(f"Filas visibles: {len(filas_visibles)}")
-
-                time.sleep(5)
-
-                while True:
-
-                    filas = [
-                        f for f in driver.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-                        if f.is_displayed()
-                    ]
-
-                    total = len(filas)
-                    logging.info(f"📊 Filas visibles actuales: {total}")
-
-                    if total == 1:
-                        logging.info("✅ Ultima fila no se elimina")
-                        break
-
-                    fila = filas[0]
-
-                    driver.execute_script("""arguments[0].scrollIntoView({block:'center'});""", fila)
-                    fila.click()
-                    logging.info("🖱️ Clic en la fila")
-
-                    time.sleep(3)
-
-                    btn_excluir = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.tb-user-del")))
-                    btn_excluir.click()
-                    logging.info("🖱️ Clic en Excluir")
-                    time.sleep(3)
-
-                    btn_si = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sí']")))
-                    btn_si.click()
-                    logging.info("🖱️ Clic en 'Sí'")
-
-                    # 🔥 ESPERAR A QUE CAMBIE LA TABLA (clave)
-                    wait.until(lambda d: len([
-                        f for f in d.find_elements(By.CSS_SELECTOR, ".x-grid3-row")
-                        if f.is_displayed()
-                    ]) < total)
-
-            except Exception as e:
-                raise Exception(f"Error al eliminar filas | Motivo : {e}")
-
-        # ⏳ esperar máscara ExtJS
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))
-        #logging.info("✅ Sin máscara")
 
         btn_imprimir = (By.XPATH, "//button[contains(@class,'tb-print') and contains(.,'Imprimir')]")
         wait.until(EC.presence_of_element_located(btn_imprimir))
@@ -931,82 +723,161 @@ def main():
         logging.info("🖱️ Clic en 'Imprimir'")
 
         archivos_antes = set(os.listdir(ruta_carpeta))
-        cotizacion_pdf = esperar_archivos_nuevos(ruta_carpeta,archivos_antes,".pdf",cantidad=1)
+        cotizacion_pdf = esperar_archivos_nuevos(ruta_carpeta, archivos_antes, ".pdf", cantidad=1)
 
         if cotizacion_pdf:
             cotizacion = True
-            logging.info(f"✅ Cotización descargada exitosamente")
+            logging.info("✅ Cotización descargada exitosamente")
             ruta_original = cotizacion_pdf[0]
             ruta_final = os.path.join(ruta_carpeta, f"cot_{ctx.id_cot}.pdf")
             os.rename(ruta_original, ruta_final)
-            logging.info(f"🔄 Cotización renombrado a 'ct_{ctx.id_cot}.pdf'")
         else:
-            raise Exception("No se descargo ninguna cotización")
+            raise Exception("No se descargó ninguna cotización")
+
+        return {"status": "SUCCESS", "id_cot": ctx.id_cot, "pdf": os.path.join(ruta_carpeta, f"cot_{ctx.id_cot}.pdf")}
 
     except WebDriverException as e:
-
         error = True
-        logging.info("--------------------------------")
-        logging.error(f"❌ Error técnico de Selenium")
+        logging.error("❌ Error técnico de Selenium durante el job")
         logging.exception(e)
         msj_error = "Problemas Técnicos del Agente"
-
-        try:
-            #-----------------------------------------------------
-            toast_error = (By.CSS_SELECTOR,"#message-div .message")
-            modal_validacion = (By.ID, "lblContenido")
-
-            resultado_et = wait.until(
-                EC.any_of(
-                    EC.visibility_of_element_located(toast_error),
-                    EC.visibility_of_element_located(modal_validacion)
-                )
-            )
-
-            texto = resultado_et.text.strip()
-
-            if resultado_et.get_attribute("id") == "lblContenido":
-                msj_error = texto
-            else:
-                msj_error = "Problemas Técnicos del Agente"
-            #-----------------------------------------------------
-        except Exception as inner_ex:
-            logging.info("--------------------------------")
-            logging.warning(f"⚠️ No se pudo obtener el mensaje de error de la interfaz")
-            logging.exception(inner_ex)
-
+        raise e
     except Exception as e:
-
         error = True
-        logging.info("--------------------------------")
-        logging.warning(f"⚠️ Error funcional: {e}")
+        logging.warning(f"⚠️ Error funcional en el job: {e}")
         msj_error = str(e)
-
+        raise e
     finally:
-
         if error:
-            #actualizar_estado_movimiento(ctx.id_cot,msj_error)
-            tomar_capturar(driver,ruta_carpeta,f"ErrorCotizando_{ctx.id_cot}")
-            if entorno:
-                enviarCorreoGeneral(ruta_carpeta,ctx)
-                enviar_x_wsp(ctx,msj_error,"notificacion",None)
+            tomar_capturar(driver, ruta_carpeta, f"ErrorCotizando_{ctx.id_cot}")
+            if entorno_job:
+                enviarCorreoGeneral(ruta_carpeta, ctx)
+                enviar_x_wsp(ctx, msj_error, "notificacion", None)
             renombrar_carpeta(ruta_carpeta)
-        
-        if driver:
-            driver.quit()
-        
+
         if cotizacion:
-            archivo = os.path.join(ruta_carpeta,f"cot_{ctx.id_cot}.pdf")
-            if entorno:
-                enviar_documento(ctx.id_cot,archivo,"cotizacion")
-                enviar_x_wsp(ctx,None,"documento",archivo)
+            archivo = os.path.join(ruta_carpeta, f"cot_{ctx.id_cot}.pdf")
+            if entorno_job:
+                enviar_documento(ctx.id_cot, archivo, "cotizacion")
+                enviar_x_wsp(ctx, None, "documento", archivo)
 
-        # if poliza and entorno:
-        #     archivo = os.path.join(ruta_carpeta,f"pol_{ctx.id_cot}.pdf")
-        #     logging.info(f"⌛ Enviando Póliza al movimiento → {ctx.id_cot}")
-        #     enviar_documento(ctx.id_cot,archivo,"poliza")
 
-#-------------------------------------------
+def main():
+    """
+    Worker Loop Principal:
+    1. Inicializa el navegador y la sesión única.
+    2. Conecta a Redis y escucha la cola con timeout para permitir Graceful Shutdown.
+    3. Procesa trabajos individualmente manteniendo la sesión activa.
+    """
+    global worker_running
+    driver = None
+    wait = None
+    r = None
+
+    # Configuración de carpeta temporal base para capturas de inicio
+    base_ruta = os.path.join(os.getcwd(), "descargas_temp")
+    os.makedirs(base_ruta, exist_ok=True)
+
+    try:
+        # 1. Conexión a Redis
+        logging.info(f"🔌 Conectando a Redis en {REDIS_HOST}:{REDIS_PORT}...")
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
+        r.ping()
+        logging.info("✅ Conexión a Redis establecida.")
+
+        # 2. Inicialización de Navegador y Sesión Única (Startup)
+        driver, wait = iniciar_navegador(base_ruta)
+        inicializar_sesion(driver, wait)
+
+        # Establecer estado inicial READY
+        r.set(REDIS_STATUS_KEY, "READY")
+        logging.info(f"🟢 Worker listo y escuchando en la cola '{REDIS_QUEUE}' (Estado: READY)")
+
+        # 3. Bucle de Procesamiento (Worker Loop)
+        while worker_running:
+            try:
+                # BRPOP con timeout corto (2 segundos) para reaccionar a señales de cancelación
+                pop_result = r.brpop(REDIS_QUEUE, timeout=2)
+
+                if not pop_result:
+                    continue  # Timeout transcurrido sin nuevos trabajos
+
+                queue_name, raw_job = pop_result
+                logging.info(f"📥 Nuevo trabajo recibido de la cola '{queue_name}'")
+
+                # Parsear Payload JSON
+                try:
+                    job_payload = json.loads(raw_job)
+                    # Desempaquetar si el orquestador envió un wrapper {"job_id":..., "payload":{...}} o {"data":{...}}
+                    if isinstance(job_payload, dict):
+                        if "payload" in job_payload and isinstance(job_payload["payload"], dict):
+                            job_payload = job_payload["payload"]
+                        elif "data" in job_payload and isinstance(job_payload["data"], dict):
+                            job_payload = job_payload["data"]
+                except Exception as parse_err:
+                    logging.error(f"❌ Error parseando JSON del trabajo recibido: {parse_err}")
+                    continue
+
+                # Cambiar estado a BUSY
+                r.set(REDIS_STATUS_KEY, "BUSY")
+
+                try:
+                    # Ejecutar automatización principal pasando la misma instancia de driver
+                    res = procesar_job(driver, wait, job_payload)
+                    logging.info(f"✅ Trabajo completado exitosamente: {res}")
+                except Exception as job_err:
+                    logging.exception(f"💥 Error al procesar el trabajo: {job_err}")
+                    # Tomar captura de seguridad en caso de error no capturado dentro del job
+                    try:
+                        tomar_capturar(driver, base_ruta, "Error_Worker_Job")
+                    except Exception:
+                        pass
+
+                # Reset Suave para retornar al Dashboard / Formulario Inicial
+                try:
+                    reset_session(driver, wait)
+                except Exception as reset_err:
+                    logging.error(f"❌ Falló el reset suave ({reset_err}). Intentando re-autenticar sesión...")
+                    try:
+                        inicializar_sesion(driver, wait)
+                    except Exception as reauth_err:
+                        logging.critical(f"💥 No se pudo recuperar la sesión: {reauth_err}")
+                        break  # Salir del bucle para reiniciar el worker/contenedor si la sesión murió totalmente
+
+                # Retornar estado a READY
+                r.set(REDIS_STATUS_KEY, "READY")
+                logging.info("🟢 Worker listo para la siguiente solicitud (Estado: READY)")
+
+            except redis.RedisError as r_err:
+                logging.error(f"❌ Error en la conexión con Redis: {r_err}")
+                time.sleep(5)
+            except Exception as loop_err:
+                logging.error(f"⚠️ Excepción no esperada en el bucle del worker: {loop_err}")
+                time.sleep(2)
+
+    except Exception as startup_err:
+        logging.critical(f"💥 Error fatal al arrancar el worker: {startup_err}")
+    finally:
+        # 4. Cierre Elegante (Graceful Shutdown)
+        logging.info("🧹 Ejecutando limpieza de recursos del worker...")
+        if r:
+            try:
+                r.set(REDIS_STATUS_KEY, "STOPPED")
+                r.close()
+                logging.info("✅ Conexión a Redis cerrada.")
+            except Exception as e:
+                logging.warning(f"⚠️ Error al cerrar Redis: {e}")
+
+        if driver:
+            try:
+                driver.quit()
+                logging.info("✅ Navegador Selenium cerrado de forma limpia.")
+            except Exception as e:
+                logging.warning(f"⚠️ Error al cerrar Selenium Driver: {e}")
+
+        logging.info("👋 Worker finalizado.")
+
 
 if __name__ == "__main__":
-    main()   
+    main()
+   

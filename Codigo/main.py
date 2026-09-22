@@ -596,11 +596,11 @@ def procesar_job(driver, wait, payload: dict):
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_generar)
         driver.execute_script("arguments[0].click();", btn_generar)
         logging.info("🖱️ Clic en 'Generar'")
-        time.sleep(3)
+        time.sleep(5)
 
         btn_ing_cliente = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Ingresar Cliente']")))
         driver.execute_script("arguments[0].click();", btn_ing_cliente)
-        time.sleep(3)
+        time.sleep(5)
 
         wait.until(EC.presence_of_element_located((By.XPATH, "//li[contains(@class,'x-tab-strip-active')]//span[normalize-space()='Cliente']")))
         wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask, div.ext-el-mask-msg")))

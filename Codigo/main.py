@@ -350,12 +350,49 @@ def reset_session(driver, wait):
         raise e
 
 
+def cerrar_modal_sesion_expirada(driver):
+    """
+    Detecta y cierra el modal ExtJS de 'Sesión expirada' si está visible.
+    Retorna True si el modal fue encontrado y cerrado, False si no había modal.
+    Los selectores cubren las variantes comunes de ExtJS MessageBox.
+    """
+    SELECTORES_MODAL = [
+        # Botón Aceptar dentro de una ventana ExtJS que contenga texto de sesión expirada
+        "//div[contains(@class,'x-window') and .//*[contains(normalize-space(),'caducado')]]//button",
+        "//div[contains(@class,'x-window') and .//*[contains(normalize-space(),'expirada')]]//button",
+        # Texto del cuerpo del mensaje ExtJS (ext-mb-text)
+        "//div[contains(@class,'ext-mb-text') and contains(normalize-space(),'caducado')]"
+        "/ancestor::div[contains(@class,'x-window')]//button",
+        # Fallback: cualquier botón Aceptar dentro de un x-window visible
+        "//div[contains(@class,'x-window') and contains(@style,'visible')]//button[normalize-space()='Aceptar']",
+    ]
+    for selector in SELECTORES_MODAL:
+        try:
+            botones = driver.find_elements(By.XPATH, selector)
+            for btn in botones:
+                if btn.is_displayed():
+                    driver.execute_script("arguments[0].click();", btn)
+                    logging.warning("⚠️ Modal 'Sesión expirada' detectado y cerrado.")
+                    time.sleep(1)
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def asegurar_sesion(driver, wait):
     """
     Verifica si la sesión sigue activa en RIMAC SAS.
+    Detecta el modal de sesión expirada (ExtJS), lo cierra y re-autentica.
     Si la sesión expiró o redirigió al login, vuelve a ejecutar inicializar_sesion().
     """
     try:
+        # Primero: detectar y cerrar modal de sesión expirada si está activo
+        if cerrar_modal_sesion_expirada(driver):
+            logging.warning("⚠️ Sesión expirada (modal detectado). Re-autenticando...")
+            inicializar_sesion(driver, wait)
+            return
+
         # Si detecta el input CODUSUARIO o la URL de login, la sesión expiró
         login_input = driver.find_elements(By.ID, "CODUSUARIO")
         if login_input and login_input[0].is_displayed():
@@ -367,6 +404,11 @@ def asegurar_sesion(driver, wait):
         if "index.html" not in driver.current_url:
             driver.get(URL_SAS + "index.html")
             time.sleep(2)
+            # Revisar modal nuevamente tras navegar
+            if cerrar_modal_sesion_expirada(driver):
+                logging.warning("⚠️ Sesión expirada (modal tras recarga). Re-autenticando...")
+                inicializar_sesion(driver, wait)
+                return
             login_input = driver.find_elements(By.ID, "CODUSUARIO")
             if login_input and login_input[0].is_displayed():
                 logging.warning("⚠️ Sesión expirada detectada tras recargar. Re-autenticando...")
@@ -377,7 +419,6 @@ def asegurar_sesion(driver, wait):
             inicializar_sesion(driver, wait)
         except Exception as reauth_err:
             logging.error(f"❌ Falló re-autenticación preventiva: {reauth_err}")
-
 
 def procesar_job(driver, wait, payload: dict):
     """
@@ -414,15 +455,30 @@ def procesar_job(driver, wait, payload: dict):
 
         # 1. Navegación en el menú: Transacciones -> Cotizar -> Registrar Cotización
         XPATH_TRANSACCIONES = "//span[normalize-space()='Transacciones']"
-        try:
-            span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", span_transacciones)
-            actions = ActionChains(driver)
-            actions.double_click(span_transacciones).perform()
-            logging.info("🖱️ Doble clic en 'Transacciones'")
-            time.sleep(2)
-        except Exception as err_trans:
-            logging.warning(f"⚠️ No se pudo hacer doble clic en Transacciones: {err_trans}")
+        MAX_REINTENTOS_TRANS = 3
+        clic_transacciones_ok = False
+        for intento in range(1, MAX_REINTENTOS_TRANS + 1):
+            try:
+                span_transacciones = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_TRANSACCIONES)))
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", span_transacciones)
+                actions = ActionChains(driver)
+                actions.double_click(span_transacciones).perform()
+                logging.info(f"🖱️ Doble clic en 'Transacciones' (intento {intento}/{MAX_REINTENTOS_TRANS})")
+                time.sleep(2)
+                clic_transacciones_ok = True
+                break
+            except Exception as err_trans:
+                logging.warning(
+                    f"⚠️ Intento {intento}/{MAX_REINTENTOS_TRANS} — No se encontró 'Transacciones': {err_trans}"
+                )
+                if intento < MAX_REINTENTOS_TRANS:
+                    logging.info("🔄 Recargando página y reintentando...")
+                    driver.refresh()
+                    time.sleep(3)
+                    asegurar_sesion(driver, wait)
+                else:
+                    logging.error("❌ No se pudo hacer clic en 'Transacciones' tras 3 intentos.")
+                    raise Exception (f"Pagina Web fuera de servicio")
 
         span_emision = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space()='Cotizar']")))
         actions = ActionChains(driver)

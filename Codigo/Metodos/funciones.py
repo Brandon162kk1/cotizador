@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # -- Froms ---
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
@@ -11,46 +11,95 @@ import logging
 import time
 
 # -- Este name tiene que se tal cual el nombre de las opciones del combo, sino no funciona
-def interactuar_combo_por_name(driver, wait, name_hidden, texto):
+def _seleccionar_item_combo(driver, contenedor, texto):
+    """
+    Intenta hacer clic directo en el primer item del dropdown de ExtJS que coincida con el texto.
+    Retorna True si encontró y clickeó un item, False si no había items visibles.
+    """
+    XPATHS_ITEM = [
+        # Item exacto o parcial en x-combo-list-item
+        f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']",
+        f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto}')]",
+        # Primer item disponible (fallback)
+        "//div[contains(@class,'x-combo-list-item')]",
+    ]
+    for xpath in XPATHS_ITEM:
+        try:
+            items = driver.find_elements(By.XPATH, xpath)
+            for item in items:
+                if item.is_displayed():
+                    driver.execute_script("arguments[0].click();", item)
+                    return True
+        except Exception:
+            continue
+    return False
 
+
+def interactuar_combo_por_name(driver, wait, name_hidden, texto, max_intentos=3):
+    """
+    Interactúa con un combo ExtJS buscando por el atributo 'name' del hidden input.
+    Estrategia de selección por niveles:
+      1. Clic directo en el item del dropdown (más confiable en ExtJS).
+      2. ENTER sobre el input como fallback.
+      3. Reintento completo del flujo desde cero (hasta max_intentos).
+    """
     wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ext-el-mask")))
 
-    # Hidden
-    hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
+    for intento in range(1, max_intentos + 1):
+        try:
+            # Re-obtener referencias en cada intento (ExtJS puede recrear el DOM)
+            hidden = wait.until(EC.presence_of_element_located((By.NAME, name_hidden)))
+            contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
+            input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
 
-    # Contenedor
-    contenedor = hidden.find_element(By.XPATH, "./ancestor::div[contains(@class,'x-form-field-wrap')]")
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_visible)
+            input_visible.click()
+            time.sleep(0.3)
+            input_visible.send_keys(Keys.CONTROL, "a")
+            input_visible.send_keys(Keys.BACKSPACE)
+            input_visible.send_keys(texto)
+            logging.info(f"⌨️ Digitando {texto!r} en → '{name_hidden}' (intento {intento}/{max_intentos})")
 
-    # Input visible (1ra vez)
-    input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
+            # Esperar que aparezca la lista desplegable con items
+            wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list-item')]")))
+            time.sleep(0.5)
 
-    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_visible)
-    input_visible.click()
-    input_visible.send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
-    input_visible.send_keys(texto)
-    logging.info(f"⌨️ Digitando texto {texto}")
+            # ── Nivel 1: clic directo en el item del dropdown ──────────────────
+            if _seleccionar_item_combo(driver, contenedor, texto):
+                logging.info(f"🖱️ Item clickeado directamente en dropdown de '{name_hidden}'")
+            else:
+                # ── Nivel 2: ENTER sobre el input como fallback ────────────────
+                logging.warning(f"⚠️ No se encontró item clickeable, usando ENTER en '{name_hidden}'")
+                input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
+                time.sleep(0.5)
+                input_visible.send_keys(Keys.ENTER)
 
-    # Esperar lista
-    wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'x-combo-list')]")))
+            # Verificar que el hidden quedó con valor
+            try:
+                wait.until(lambda d: hidden.get_attribute("value"))
+                logging.info(
+                    f"✅ Combo '{name_hidden}' confirmado. Valor: {hidden.get_attribute('value')}"
+                )
+                return
+            except TimeoutException:
+                logging.warning(
+                    f"⚠️ Intento {intento}/{max_intentos} — hidden '{name_hidden}' sigue vacío tras selección."
+                )
+                if intento == max_intentos:
+                    logging.error(f"❌ No se pudo confirmar el combo '{name_hidden}' tras {max_intentos} intentos.")
+                    raise Exception("Problemas técnicos, comunícate con el área de sistemas")
+                # Cerrar dropdown si quedó abierto antes del siguiente intento
+                try:
+                    input_visible.send_keys(Keys.ESCAPE)
+                except Exception:
+                    pass
+                time.sleep(1)
 
-    # RE-OBTENER input (ExtJS lo recrea)
-    input_visible = contenedor.find_element(By.XPATH, ".//input[contains(@class,'x-form-field')]")
-
-    # ENTER
-    time.sleep(2)
-    input_visible.send_keys(Keys.ENTER)
-
-    # Esperar que ExtJS actualice el hidden
-    try:
-
-        wait.until(lambda d: hidden.get_attribute("value"))
-        logging.info(f"✅ Combo '{name_hidden}' confirmado con ENTER. "f"Valor: {hidden.get_attribute('value')}")
-        return
-
-    except TimeoutException:
-        
-        logging.error(f"❌ ENTER no confirmó el combo '{name_hidden}'. "f"Valor hidden: '{hidden.get_attribute('value')}'")
-        raise Exception("Problemas técnicos, comunícate con el área de sistemas")
+        except TimeoutException as e:
+            logging.warning(f"⚠️ Timeout en intento {intento}/{max_intentos} del combo '{name_hidden}': {e}")
+            if intento == max_intentos:
+                raise Exception("Problemas técnicos, comunícate con el área de sistemas")
+            time.sleep(1)
 
 def seleccionar_combo_por_flecha(driver, wait, name_hidden, texto_opcion):
 

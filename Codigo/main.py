@@ -464,7 +464,7 @@ def procesar_job(driver, wait, payload: dict):
                 actions = ActionChains(driver)
                 actions.double_click(span_transacciones).perform()
                 logging.info(f"🖱️ Doble clic en 'Transacciones' (intento {intento}/{MAX_REINTENTOS_TRANS})")
-                time.sleep(2)
+                time.sleep(5)
                 clic_transacciones_ok = True
                 break
             except Exception as err_trans:
@@ -474,7 +474,7 @@ def procesar_job(driver, wait, payload: dict):
                 if intento < MAX_REINTENTOS_TRANS:
                     logging.info("🔄 Recargando página y reintentando...")
                     driver.refresh()
-                    time.sleep(3)
+                    time.sleep(5)
                     asegurar_sesion(driver, wait)
                 else:
                     logging.error("❌ No se pudo hacer clic en 'Transacciones' tras 3 intentos.")

@@ -19,9 +19,9 @@ def _seleccionar_item_combo(driver, contenedor, texto):
     XPATHS_ITEM = [
         # Item exacto o parcial en x-combo-list-item
         f"//div[contains(@class,'x-combo-list-item') and normalize-space()='{texto}']",
-        f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto}')]",
+        f"//div[contains(@class,'x-combo-list-item') and contains(normalize-space(),'{texto}')]"
         # Primer item disponible (fallback)
-        "//div[contains(@class,'x-combo-list-item')]",
+        #"//div[contains(@class,'x-combo-list-item')]",
     ]
     for xpath in XPATHS_ITEM:
         try:
@@ -33,7 +33,6 @@ def _seleccionar_item_combo(driver, contenedor, texto):
         except Exception:
             continue
     return False
-
 
 def interactuar_combo_por_name(driver, wait, name_hidden, texto, max_intentos=3):
     """

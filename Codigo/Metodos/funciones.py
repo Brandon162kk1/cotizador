@@ -34,7 +34,6 @@ def _seleccionar_item_combo(driver, contenedor, texto):
             continue
     return False
 
-
 def interactuar_combo_por_name(driver, wait, name_hidden, texto, max_intentos=3):
     """
     Interactúa con un combo ExtJS buscando por el atributo 'name' del hidden input.
